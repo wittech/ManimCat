@@ -57,7 +57,7 @@ export async function generateSceneDesignStage(params: SceneDesignStageParams): 
     })
 
     let content = ''
-    let mode: 'stream' | 'non-stream' = 'stream'
+    let mode: 'stream' | 'stream-partial' | 'non-stream' = 'stream'
     let fallbackResponse: OpenAI.Chat.Completions.ChatCompletion | undefined
     if (onCheckpoint) await onCheckpoint()
 
