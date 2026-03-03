@@ -110,6 +110,8 @@ docker-compose up -d
 - 需要 Docker Space（SDK 选择 Docker）
 - 推荐 CPU upgrade（4 vCPU / 32GB）
 - 默认端口为 7860
+- Hugging Face 运行时环境变量来自 **Space Settings -> Variables/Secrets**，不是仓库里的 `.env`
+- 启动日志出现 `injecting env (0) from .env` 属于正常现象，不代表 Settings 变量未生效
 
 ### 步骤
 
@@ -127,7 +129,7 @@ cp -r /path/to/ManimCat/* .
 cp Dockerfile.huggingface Dockerfile
 ```
 
-3. 在 Space Settings 中配置变量
+3. 在 Space Settings 中配置变量（必须在 Settings 中设置）
 
 至少设置：
 
@@ -147,6 +149,14 @@ MANIMCAT_API_KEYS=your-api-key-2,your-api-key-3
 LOG_LEVEL=info
 PROD_SUMMARY_LOG_ONLY=true
 OPENAI_STREAM_INCLUDE_USAGE=true
+```
+
+如果你希望生产环境只保留每任务一条摘要日志，请确保以下三项都已在 Settings 配置并重启 Space：
+
+```env
+NODE_ENV=production
+LOG_LEVEL=info
+PROD_SUMMARY_LOG_ONLY=true
 ```
 
 4. 推送并等待构建
