@@ -25,12 +25,28 @@ const LOG_LEVEL_MAP: Record<string, LogLevel> = {
   error: LogLevel.ERROR
 }
 
+function parseBooleanEnv(value: string | undefined): boolean | undefined {
+  if (typeof value !== 'string') {
+    return undefined
+  }
+
+  const normalized = value.trim().toLowerCase()
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+    return true
+  }
+  if (['0', 'false', 'no', 'off'].includes(normalized)) {
+    return false
+  }
+  return undefined
+}
+
 /**
  * 当前日志级别
  */
 const currentLogLevel = LOG_LEVEL_MAP[appConfig.logging.level] || LogLevel.INFO
-// Temporarily disable production summary-only filtering.
-const prodSummaryLogOnly = false
+const prodSummaryLogOnly =
+  appConfig.nodeEnv === 'production' &&
+  (parseBooleanEnv(process.env.PROD_SUMMARY_LOG_ONLY) ?? true)
 
 /**
  * 格式化时间戳

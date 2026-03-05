@@ -111,6 +111,17 @@ pinned: false
   <p><i>example02</i></p>
 </div>
 
+### 03
+
+> $1/4 + 1/16 + 1/64 + \dots = 1/3$，证明这个等式，美丽的图形方法，优雅的缩放平稳镜头移动，慢节奏，至少两分钟，逻辑清晰，奶黄色背景，马卡龙色系
+
+<div align="center">
+
+  <video src="https://github.com/user-attachments/assets/c48021ed-d5c4-4be1-b09e-8d3a716d8d10" width="80%" autoplay loop muted playsinline>
+  </video>
+  <p><i>example03</i></p>
+</div>
+
 
 ## 技术
 

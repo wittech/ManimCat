@@ -10,6 +10,7 @@ interface FlowResult {
   success: true
   source: 'pre-generated' | 'ai-edit' | 'generation'
   timings: Record<string, number>
+  renderPeakMemoryMB?: number
 }
 
 interface BaseFlowArgs {
@@ -43,7 +44,12 @@ export async function runPreGeneratedFlow(args: BaseFlowArgs): Promise<FlowResul
   timings.store = Date.now() - storeStart
   timings.total = (timings.render || 0) + (timings.store || 0)
 
-  return { success: true, source: 'pre-generated', timings }
+  return {
+    success: true,
+    source: 'pre-generated',
+    timings,
+    renderPeakMemoryMB: renderResult.renderPeakMemoryMB
+  }
 }
 
 export async function runEditFlow(args: BaseFlowArgs): Promise<FlowResult> {
@@ -111,7 +117,12 @@ export async function runEditFlow(args: BaseFlowArgs): Promise<FlowResult> {
   timings.store = Date.now() - storeStart
   timings.total = (timings.edit || 0) + (timings.render || 0) + (timings.store || 0)
 
-  return { success: true, source: 'ai-edit', timings }
+  return {
+    success: true,
+    source: 'ai-edit',
+    timings,
+    renderPeakMemoryMB: renderResult.renderPeakMemoryMB
+  }
 }
 
 export async function runGenerationFlow(args: BaseFlowArgs): Promise<FlowResult> {
@@ -168,5 +179,10 @@ export async function runGenerationFlow(args: BaseFlowArgs): Promise<FlowResult>
   timings.store = Date.now() - storeStart
   timings.total = (timings.analyze || 0) + (timings.render || 0) + (timings.store || 0)
 
-  return { success: true, source: 'generation', timings }
+  return {
+    success: true,
+    source: 'generation',
+    timings,
+    renderPeakMemoryMB: renderResult.renderPeakMemoryMB
+  }
 }

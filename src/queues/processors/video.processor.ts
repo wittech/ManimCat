@@ -21,6 +21,7 @@ function emitJobSummary(args: {
   result: 'completed' | 'failed'
   outputMode: string
   timings?: Record<string, number>
+  renderPeakMemoryMB?: number
   error?: string
   attempt?: number
   maxAttempts?: number
@@ -35,6 +36,7 @@ function emitJobSummary(args: {
     attempt: args.attempt,
     maxAttempts: args.maxAttempts,
     timings: args.timings,
+    renderPeakMemoryMB: args.renderPeakMemoryMB,
     error: args.error,
     tokens: tokenSummary
       ? {
@@ -100,6 +102,7 @@ videoQueue.process(async (job) => {
         result: 'completed',
         outputMode,
         timings,
+        renderPeakMemoryMB: result.renderPeakMemoryMB,
         attempt: retryMeta.currentAttempt,
         maxAttempts: retryMeta.maxAttempts
       })
@@ -115,6 +118,7 @@ videoQueue.process(async (job) => {
         result: 'completed',
         outputMode,
         timings,
+        renderPeakMemoryMB: result.renderPeakMemoryMB,
         attempt: retryMeta.currentAttempt,
         maxAttempts: retryMeta.maxAttempts
       })
@@ -129,6 +133,7 @@ videoQueue.process(async (job) => {
       result: 'completed',
       outputMode,
       timings,
+      renderPeakMemoryMB: result.renderPeakMemoryMB,
       attempt: retryMeta.currentAttempt,
       maxAttempts: retryMeta.maxAttempts
     })

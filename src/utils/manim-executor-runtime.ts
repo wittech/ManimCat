@@ -8,6 +8,17 @@ const logger = createLogger('ManimExecutorRuntime')
 const STDOUT_LOG_INTERVAL_MS = 5000
 const PROGRESS_LOG_INTERVAL_MS = 3000
 const MEMORY_MONITOR_INTERVAL_MS = 2000
+const IS_PRODUCTION = process.env.NODE_ENV === 'production'
+
+function parseBooleanEnv(value: string | undefined): boolean | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().toLowerCase()
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false
+  return undefined
+}
+
+const renderMemoryLogEnabled = parseBooleanEnv(process.env.RENDER_MEMORY_LOG_ENABLED) ?? !IS_PRODUCTION
 
 const RESOLUTION_MAP: Record<string, { width: number; height: number }> = {
   low: { width: 854, height: 480 },
@@ -99,10 +110,12 @@ export function startMemoryMonitor(
       state.peakMemoryMB = memory
     }
 
-    logger.info(`Job ${options.jobId}: Manim 内存使用（进程树总和）`, {
-      memoryMB: memory,
-      peakMemoryMB: state.peakMemoryMB
-    })
+    if (renderMemoryLogEnabled) {
+      logger.info(`Job ${options.jobId}: Manim 内存使用（进程树总和）`, {
+        memoryMB: memory,
+        peakMemoryMB: state.peakMemoryMB
+      })
+    }
   }, MEMORY_MONITOR_INTERVAL_MS)
 }
 
