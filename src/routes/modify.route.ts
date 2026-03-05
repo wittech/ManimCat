@@ -22,6 +22,7 @@ import {
   qualitySchema,
   videoConfigSchema
 } from './schemas/common'
+import { resolveCustomApiConfigByManimcatKey } from '../utils/manimcat-routing'
 
 const router = express.Router()
 const logger = createLogger('ModifyRoute')
@@ -40,6 +41,9 @@ const bodySchema = z.object({
 async function handleModifyRequest(req: express.Request, res: express.Response) {
   const parsed = bodySchema.parse(req.body)
   const { concept, outputMode, quality, instructions, code, customApiConfig, promptOverrides, videoConfig } = parsed
+  const authenticatedManimcatApiKey = res.locals.manimcatApiKey as string | undefined
+  const routedCustomApiConfig = resolveCustomApiConfigByManimcatKey(authenticatedManimcatApiKey)
+  const effectiveCustomApiConfig = routedCustomApiConfig ?? customApiConfig
 
   if (hasPromptOverrides(promptOverrides)) {
     requirePromptOverrideAuth(req)
@@ -63,6 +67,8 @@ async function handleModifyRequest(req: express.Request, res: express.Response) 
     outputMode,
     quality,
     hasCode: !!code,
+    hasCustomApiConfig: !!effectiveCustomApiConfig,
+    routeByManimcatKey: !!routedCustomApiConfig,
     videoConfig
   })
 
@@ -76,7 +82,7 @@ async function handleModifyRequest(req: express.Request, res: express.Response) 
       quality,
       editCode: code,
       editInstructions: sanitizedInstructions,
-      customApiConfig,
+      customApiConfig: effectiveCustomApiConfig,
       promptOverrides,
       videoConfig,
       timestamp: new Date().toISOString()

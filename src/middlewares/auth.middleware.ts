@@ -13,7 +13,7 @@ const logger = createLogger('AuthMiddleware')
 
 /**
  * 认证中间件
- * 验证 Bearer 令牌是否匹配 MANIMCAT_API_KEY 和 OPENAI_API_KEY
+ * 验证 Bearer 令牌是否匹配 ManimCat 认证 key 列表
  */
 export function authMiddleware(
   req: Request,
@@ -54,5 +54,6 @@ export function authMiddleware(
     keyPrefix: token.slice(0, 4) + '...'
   })
 
+  res.locals.manimcatApiKey = token
   next()
 }

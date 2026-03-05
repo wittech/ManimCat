@@ -24,6 +24,7 @@ import { requirePromptOverrideAuth } from '../utils/auth-utils'
 import { hasPromptOverrides } from '../utils/prompt-overrides'
 import { sanitizeReferenceImages } from './helpers/reference-images'
 import { generateBodySchema } from './schemas/generate'
+import { resolveCustomApiConfigByManimcatKey } from '../utils/manimcat-routing'
 
 const router = express.Router()
 const logger = createLogger('GenerateRoute')
@@ -35,6 +36,9 @@ async function handleGenerateRequest(req: express.Request, res: express.Response
   const parsed = generateBodySchema.parse(req.body)
 
   const { concept, outputMode, quality, code, customApiConfig, promptOverrides, videoConfig, referenceImages } = parsed
+  const authenticatedManimcatApiKey = res.locals.manimcatApiKey as string | undefined
+  const routedCustomApiConfig = resolveCustomApiConfigByManimcatKey(authenticatedManimcatApiKey)
+  const effectiveCustomApiConfig = routedCustomApiConfig ?? customApiConfig
 
   // 清理输入
   if (hasPromptOverrides(promptOverrides)) {
@@ -57,6 +61,8 @@ async function handleGenerateRequest(req: express.Request, res: express.Response
     outputMode,
     quality,
     hasPreGeneratedCode: !!code,
+    hasCustomApiConfig: !!effectiveCustomApiConfig,
+    routeByManimcatKey: !!routedCustomApiConfig,
     referenceImageCount: sanitizedReferenceImages?.length || 0,
     videoConfig
   })
@@ -73,7 +79,7 @@ async function handleGenerateRequest(req: express.Request, res: express.Response
       quality,
       referenceImages: sanitizedReferenceImages,
       preGeneratedCode: code,
-      customApiConfig,
+      customApiConfig: effectiveCustomApiConfig,
       promptOverrides,
       videoConfig,
       timestamp: new Date().toISOString()

@@ -20,10 +20,19 @@ cd ManimCat
 cp .env.example .env
 ```
 
-在 `.env` 中至少设置：
+在 `.env` 中至少设置一类 AI 来源：
 
 ```env
 OPENAI_API_KEY=your-openai-api-key
+```
+
+或使用按 key 分流（无需默认后端 key）：
+
+```env
+MANIMCAT_ROUTE_KEYS=user_key_a,user_key_b
+MANIMCAT_ROUTE_API_URLS=https://api-a.example.com/v1,https://api-b.example.com/v1
+MANIMCAT_ROUTE_API_KEYS=sk-a,sk-b
+MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 ```
 
 可选：
@@ -33,6 +42,10 @@ OPENAI_MODEL=glm-4-flash
 CUSTOM_API_URL=https://your-proxy-api/v1
 MANIMCAT_API_KEY=your-api-key
 MANIMCAT_API_KEYS=your-api-key-2,your-api-key-3
+MANIMCAT_ROUTE_KEYS=user_key_a,user_key_b
+MANIMCAT_ROUTE_API_URLS=https://api-a.example.com/v1,https://api-b.example.com/v1
+MANIMCAT_ROUTE_API_KEYS=sk-a,sk-b
+MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 LOG_LEVEL=info
 PROD_SUMMARY_LOG_ONLY=false
 OPENAI_STREAM_INCLUDE_USAGE=false
@@ -69,10 +82,19 @@ npm start
 cp .env.production .env
 ```
 
-在 `.env` 中至少设置：
+在 `.env` 中至少设置一类 AI 来源：
 
 ```env
 OPENAI_API_KEY=your-openai-api-key
+```
+
+或使用按 key 分流（无需默认后端 key）：
+
+```env
+MANIMCAT_ROUTE_KEYS=user_key_a,user_key_b
+MANIMCAT_ROUTE_API_URLS=https://api-a.example.com/v1,https://api-b.example.com/v1
+MANIMCAT_ROUTE_API_KEYS=sk-a,sk-b
+MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 ```
 
 生产推荐额外设置：
@@ -88,6 +110,11 @@ OPENAI_STREAM_INCLUDE_USAGE=true
 MANIMCAT_API_KEY=your-api-key-1
 # 可选：配置多个 key（逗号或换行分隔）
 MANIMCAT_API_KEYS=your-api-key-2,your-api-key-3
+# 可选：按 key 路由到不同上游
+MANIMCAT_ROUTE_KEYS=user_key_a,user_key_b
+MANIMCAT_ROUTE_API_URLS=https://api-a.example.com/v1,https://api-b.example.com/v1
+MANIMCAT_ROUTE_API_KEYS=sk-a,sk-b
+MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 ```
 
 ### 阶段 3: 构建并启动
@@ -134,9 +161,21 @@ cp Dockerfile.huggingface Dockerfile
 至少设置：
 
 ```env
-OPENAI_API_KEY=your-openai-api-key
 PORT=7860
 NODE_ENV=production
+```
+
+并配置一类 AI 来源（任选其一）：
+
+```env
+# 方式 A：默认后端 AI
+OPENAI_API_KEY=your-openai-api-key
+
+# 方式 B：按 key 分流（可不填 OPENAI_API_KEY）
+MANIMCAT_ROUTE_KEYS=user_key_a,user_key_b
+MANIMCAT_ROUTE_API_URLS=https://api-a.example.com/v1,https://api-b.example.com/v1
+MANIMCAT_ROUTE_API_KEYS=sk-a,sk-b
+MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 ```
 
 可选：
@@ -146,6 +185,10 @@ OPENAI_MODEL=glm-4-flash
 CUSTOM_API_URL=https://your-proxy-api/v1
 MANIMCAT_API_KEY=your-api-key
 MANIMCAT_API_KEYS=your-api-key-2,your-api-key-3
+MANIMCAT_ROUTE_KEYS=user_key_a,user_key_b
+MANIMCAT_ROUTE_API_URLS=https://api-a.example.com/v1,https://api-b.example.com/v1
+MANIMCAT_ROUTE_API_KEYS=sk-a,sk-b
+MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 LOG_LEVEL=info
 PROD_SUMMARY_LOG_ONLY=true
 OPENAI_STREAM_INCLUDE_USAGE=true
@@ -171,88 +214,39 @@ git push
 
 ---
 
-## 前端多组 Custom API 分流
+## 按 ManimCat Key 分流（推荐）
 
-### 整体架构
+### 目标
 
-ManimCat 的 AI 调用有两种来源：
+当你需要区分“测试用户 / 正式用户”时，推荐在服务端用 `MANIMCAT_ROUTE_*` 做固定路由：
 
-1. **后端默认 client**：由服务器的 `OPENAI_API_KEY` + `CUSTOM_API_URL` + `OPENAI_MODEL` 创建，服务器出钱。
-2. **前端 Custom API**：用户在前端设置页自行填写 API 地址/密钥/模型，用户出钱。
+- `user_key_a` 走上游 A（例如 `https://api-a.example.com/v1 + qwen3.5-plus + sk-a`）
+- `user_key_b` 走上游 B（例如 `https://api-b.example.com/v1 + gemini-3-flash-preview + sk-b`）
 
-当前端填写了 Custom API 配置时，请求会携带 `customApiConfig` 发送到后端，后端使用用户提供的 key 调用 AI；
-如果前端没有填写，后端会使用服务器自己的默认 client。
+### 配置方式
 
-### 多 Profile 配置
-
-前端设置页的四个输入框都支持**逗号或换行分隔**填写多个值：
-
-| 字段 | 是否必填 | 说明 |
-|------|---------|------|
-| API 地址 | 必填 | 缺少则该组配置**跳过** |
-| API 密钥 | 必填 | 缺少则该组配置**跳过** |
-| 模型名称 | 可选 | 留空时后端回退到服务器的 `OPENAI_MODEL` |
-| ManimCat API 密钥 | 可选 | 用于后端认证（如果开启了 `MANIMCAT_API_KEY`） |
-
-系统按索引位置一一配对，生成多个 Profile，每次请求自动轮换（round-robin）：
-
-```
-Profile 0 = url[0] + key[0] + model[0] + manimcatKey[0]
-Profile 1 = url[1] + key[1] + model[1] + manimcatKey[1]
-...
+```env
+MANIMCAT_ROUTE_KEYS=user_key_a,user_key_b
+MANIMCAT_ROUTE_API_URLS=https://api-a.example.com/v1,https://api-b.example.com/v1
+MANIMCAT_ROUTE_API_KEYS=sk-a,sk-b
+MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 ```
 
-### 值的对齐规则
+规则：
 
-| 情况 | 行为 |
-|------|------|
-| 只写了 **1 个值** | 所有 Profile 复用这个值 |
-| 写了 **N 个值** | 严格按索引对应 |
-| 某个索引位置 **超出范围** | 该字段为空字符串 |
+1. 以上四组变量都支持逗号或换行分隔。
+2. 以 `MANIMCAT_ROUTE_KEYS` 为主索引逐项配对。
+3. `apiUrl` 或 `apiKey` 缺失的条目会被跳过。
+4. `model` 可留空，留空时回退到 `OPENAI_MODEL`。
+5. `MANIMCAT_ROUTE_KEYS` 会自动加入认证白名单（无需重复写到 `MANIMCAT_API_KEYS`）。
 
-例如 URL 只写 1 个、Key 写 2 个 → 两个 Profile 都复用同一个 URL。
+### 上游选择优先级（高 -> 低）
 
-### 示例
+1. 命中 `MANIMCAT_ROUTE_*`（按 Bearer key 映射）
+2. 请求体 `customApiConfig`（前端自定义 API）
+3. 后端默认 `OPENAI_API_KEY + CUSTOM_API_URL + OPENAI_MODEL`
 
-#### 场景 1：两个不同的 API 提供商轮换
+## 前端多组 Custom API（可选）
 
-```text
-API 地址:      https://api-a.example.com/v1, https://api-b.example.com/v1
-API 密钥:      sk-a, sk-b
-模型名称:      qwen-plus, glm-4-flash
-ManimCat 密钥: mc-a, mc-b
-```
-
-结果：Profile 0 用 api-a + qwen-plus，Profile 1 用 api-b + glm-4-flash，交替使用。
-
-#### 场景 2：同一个 URL、两个 Key 分散限流
-
-```text
-API 地址:      https://api.example.com/v1
-API 密钥:      sk-main, sk-backup
-模型名称:      qwen-plus
-ManimCat 密钥: mc-key
-```
-
-结果：两个 Profile 共享同一个 URL、同一个模型、同一个认证 key，只是 API 密钥不同。适合同一提供商有多个 key 时分散请求压力。
-
-#### 场景 3：一个 Key 用指定模型，另一个 Key 用服务器默认模型
-
-```text
-API 地址:      https://api.example.com/v1
-API 密钥:      sk-premium, sk-free
-模型名称:      qwen-plus,
-ManimCat 密钥: mc-a, mc-b
-```
-
-注意模型名称 `qwen-plus,`（末尾有逗号）→ 拆分后得到 `[“qwen-plus”]`，只有 1 个值。
-按”只写了 1 个值”的规则，两个 Profile 都会使用 `qwen-plus`。
-
-如果你希望第二个 Profile 使用不同的模型，需要显式写两个值：
-
-```text
-模型名称:      qwen-plus, glm-4-flash
-```
-
-> **注意**：模型名称留空时，后端会回退到服务器环境变量 `OPENAI_MODEL` 的值（默认 `glm-4-flash`）。
-> 目前没有”禁止某个 Key 使用 AI”的机制——只要请求通过认证，就可以调用 AI。
+前端设置页仍支持多组 `url/key/model/manimcatKey` 轮询；它适合“同一浏览器用户自管多组上游”。  
+如果你希望“不同用户固定走不同上游”，优先使用上面的服务端 `MANIMCAT_ROUTE_*`。

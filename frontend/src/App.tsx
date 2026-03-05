@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { OutputMode, Quality, ReferenceImage } from './types/api';
 import { useGeneration } from './hooks/useGeneration';
+import { useTabTitle } from './hooks/useTabTitle';
 import { TimingPanel } from './components/TimingPanel';
 import { AiModifyModal } from './components/AiModifyModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -16,6 +17,7 @@ import { StatusContent } from './components/app/status-content';
 
 function App() {
   const { status, result, error, jobId, stage, generate, renderWithCode, modifyWithAI, reset, cancel } = useGeneration();
+  useTabTitle(status, stage);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [promptsOpen, setPromptsOpen] = useState(false);

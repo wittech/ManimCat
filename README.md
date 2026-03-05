@@ -197,12 +197,16 @@ pinned: false
 | `REDIS_PORT` | `6379` | Redis 端口 |
 | `REDIS_PASSWORD` | - | Redis 密码（如需） |
 | `REDIS_DB` | `0` | Redis 数据库 |
-| `OPENAI_API_KEY` | - | OpenAI API Key（必填） |
+| `OPENAI_API_KEY` | - | 默认后端 AI 的 API Key（若全部使用路由/custom API，可不填） |
 | `OPENAI_MODEL` | `glm-4-flash` | OpenAI 模型 |
 | `OPENAI_TIMEOUT` | `600000` | OpenAI 请求超时（毫秒） |
 | `CUSTOM_API_URL` | - | 自定义 OpenAI 兼容 API |
 | `MANIMCAT_API_KEY` | - | API 访问密钥（可选） |
 | `MANIMCAT_API_KEYS` | - | 多个 API 访问密钥（逗号/换行分隔，可选） |
+| `MANIMCAT_ROUTE_KEYS` | - | 按 ManimCat key 进行上游映射的 key 列表（逗号/换行分隔） |
+| `MANIMCAT_ROUTE_API_URLS` | - | 上游 API 地址列表（与 `MANIMCAT_ROUTE_KEYS` 按索引配对） |
+| `MANIMCAT_ROUTE_API_KEYS` | - | 上游 API 密钥列表（与 `MANIMCAT_ROUTE_KEYS` 按索引配对） |
+| `MANIMCAT_ROUTE_MODELS` | - | 上游模型列表（可选，缺失时回退 `OPENAI_MODEL`） |
 | `AI_TEMPERATURE` | `0.7` | 生成温度 |
 | `AI_MAX_TOKENS` | `1200` | 生成最大 tokens |
 | `DESIGNER_TEMPERATURE` | `0.8` | 设计师温度 |
@@ -232,7 +236,17 @@ OPENAI_MODEL=glm-4-flash
 OPENAI_TIMEOUT=600000
 AI_TEMPERATURE=0.7
 CODE_RETRY_MAX_RETRIES=4
+MANIMCAT_ROUTE_KEYS=user_key_a,user_key_b
+MANIMCAT_ROUTE_API_URLS=https://api-a.example.com/v1,https://api-b.example.com/v1
+MANIMCAT_ROUTE_API_KEYS=sk-a,sk-b
+MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 ```
+
+**上游选择优先级（高 -> 低）**
+
+1. `MANIMCAT_ROUTE_*` 命中当前 Bearer key
+2. 请求体 `customApiConfig`
+3. 服务端默认 `OPENAI_API_KEY + OPENAI_MODEL + CUSTOM_API_URL`
 
 ## 部署
 
@@ -299,7 +313,9 @@ CODE_RETRY_MAX_RETRIES=4
 
   - 新增生产日志摘要模式（可按任务输出单条结果日志，支持 token 汇总）
 
-  - 自定义 API 支持多组配置（url/key/model/manimcat key 列表按顺序配对并轮询分流）
+  - 支持服务端按 ManimCat key 映射上游（可区分测试/正式用户）
+
+  - 前端自定义 API 仍支持多组配置轮询分流（url/key/model/manimcat key 按索引配对）
 
 
 
