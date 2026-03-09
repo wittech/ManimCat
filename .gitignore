@@ -43,9 +43,11 @@ tmp/
 # MD files (except README)
 *.md
 !README.md
+!README.zh-CN.md
 !frontend/README.md
 !static/gifs/README.md
 !DEPLOYMENT.md
+!DEPLOYMENT.zh-CN.md
 !src/prompts/templates/**/*.md
 
 # Flow type files
