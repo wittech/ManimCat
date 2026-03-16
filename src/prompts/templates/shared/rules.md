@@ -12,7 +12,6 @@
 - **索引陷阱**：严禁对 `MathTex` 使用 `[i]` 索引
 - **配置字典**：严禁直接在 `Axes` 初始化中传入视觉参数，必须封装在 `axis_config` 中
 - **虚线陷阱**：严禁在 `plot()`, `Line()`, `Circle()` 等普通绘图函数中直接使用 `dash_length` 或 `dashed_ratio`
-- **相机陷阱**：`self.camera.frame` 只存在于 `MovingCameraScene`，普通 `Scene` 的 Camera 没有 `frame` 属性。需要镜头平移/缩放时，必须让类继承 `MovingCameraScene`，否则会触发 `AttributeError`
 
 ### API 严格性（非黑即白原则）
 

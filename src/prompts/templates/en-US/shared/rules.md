@@ -12,7 +12,6 @@
 - **Indexing trap**: never use `[i]` indexing directly on `MathTex`
 - **Configuration dictionaries**: never pass visual parameters directly into `Axes`; they must be wrapped inside `axis_config`
 - **Dashed-line trap**: never pass `dash_length` or `dashed_ratio` directly into common drawing helpers such as `plot()`, `Line()`, or `Circle()`
-- **Camera trap**: `self.camera.frame` only exists in `MovingCameraScene`. A regular `Scene`'s Camera has no `frame` attribute. When camera panning or zooming is needed, the class must inherit from `MovingCameraScene`, otherwise an `AttributeError` will be raised
 
 ### API Strictness (black-and-white principle)
 

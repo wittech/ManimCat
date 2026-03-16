@@ -20,7 +20,22 @@ method_codebook = {
   play: pl,
   wait: wt,
   add: ad,
-  remove: rm
+  remove: rm,
+  arrange: ar,
+  arrange_in_grid: aig,
+  to_corner: tc,
+  to_edge: te,
+  align_to: at,
+  set_color: stc,
+  set_opacity: sto,
+  set_fill: stf,
+  set_stroke: sts,
+  set_width: swi,
+  set_height: shi,
+  save_state: svs,
+  restore: rst,
+  flip: fl,
+  center: cen
 }
 method_param_codebook = {
   vectors: vecs,
@@ -33,10 +48,18 @@ method_param_codebook = {
   animations: anims,
   run_time: run_t,
   duration: dur,
-  mobjects: mobs
+  mobjects: mobs,
+  rows: rows,
+  cols: cols,
+  cell_alignment: c_al,
+  corner: cnr,
+  edge: edg,
+  color: col,
+  opacity: op,
+  family: fam
 }
 method_index = {
-  Mobject_methods: [sh(vecs), mv(tgt), nx(mob, dir, buf), sc(fac), rt(ang), bc(tgt)],
+  Mobject_methods: [sh(vecs), mv(tgt), nx(mob, dir, buf), sc(fac), rt(ang), bc(tgt), ar(dir, buf), aig(rows, cols, buf), tc(cnr, buf), te(edg, buf), at(mob, dir), stc(col), sto(op), stf(col, op), sts(col, s_w), swi(wid), shi(hgt), svs(), rst(), fl(dir), cen()],
   Scene_methods: [pl(anims, run_t), wt(dur), ad(mobs), rm(mobs)]
 }
 
@@ -227,6 +250,26 @@ args_codebook = {
   light_source: l_src,
   depth: depth,
   gloss: gloss,
+  tip_length: tip_l,
+  sharpness: shrp,
+  num_dashes: n_d,
+  num_decimal_places: ndp,
+  include_sign: inc_s,
+  group_with_commas: gwc,
+  unit: unit,
+  data: data,
+  row_labels: r_lbls,
+  col_labels: c_lbls,
+  include_outer_lines: iol,
+  function: func,
+  t_range: t_r,
+  use_smoothing: u_sm,
+  amplitude: amp,
+  time_width: t_w,
+  lag_ratio: lag_r,
+  n_times: n_t,
+  flash_radius: fl_r,
+  line_length: ln_l
 }
 
 ### Args Index Sets (abbr only)
@@ -263,7 +306,15 @@ unique_args_index = {
     Sector: [rad],
     Square: [sd_l],
     Star: [n, o_rad, i_rad, dns, s_ang],
-    Union: [vms]
+    Union: [vms],
+    Arrow: [st, ed, buf, s_w, tip_l],
+    DoubleArrow: [st, ed, buf, s_w, tip_l],
+    Vector: [dir],
+    Brace: [mobj, dir, buf, shrp],
+    SurroundingRectangle: [mobj, buf, c_rad, s_w],
+    DashedLine: [st, ed, n_d],
+    VGroup: [mobs],
+    Group: [mobs]
   },
   shape_3d: {
     Arrow3D: [st, ed, thk, hgt, b_rad, res],
@@ -280,6 +331,7 @@ unique_args_index = {
     Sphere: [ctr, rad, res, u_r, v_r],
     Tetrahedron: [e_len],
     Torus: [mj_rad, mn_rad, u_r, v_r, res],
+    Surface: [func, u_r, v_r, res, cb_cols],
     ThreeDVMobject: [@VMobject]
   },
   text_formula: {
@@ -291,7 +343,8 @@ unique_args_index = {
     SingleStringMathTex: [tex1, sh_ctr, hgt, oltr, tex_env, tex_tpl, fs],
     Tex: [texs, arg_sep, tex_env],
     Text: [text, fs, ls, font, slant, wgt, t2c, t2f, t2g, t2s, t2w, grad, tab_w, hgt, wid, sh_ctr, dis_lig, wmf, usc],
-    Title: [t_parts, inc_ul, muwtt, ul_buf]
+    Title: [t_parts, inc_ul, muwtt, ul_buf],
+    DecimalNumber: [ndp, inc_s, gwc, fs, unit]
   },
   coordinate: {
     Axes: [x_r, y_r, x_l, y_l, ax_cfg, xax_cfg, yax_cfg, tips],
@@ -301,7 +354,11 @@ unique_args_index = {
     NumberLine: [x_r, len, u_size, inc_ticks, tick_s, nwet, ltm, eot, rot, inc_tip, tip_w, tip_h, tip_shape, inc_nums, fs, l_dir, l_ctor, scaling, ltnb, dec_cfg, n_ex, n_in],
     NumberPlane: [x_r, y_r, x_l, y_l, bls, fls, flr],
     PolarPlane: [r_max, size, r_step, az_step, az_units, az_cf, az_off, az_dir, az_lb, az_lfs, r_cfg, bls, fls, flr],
-    ThreeDAxes: [x_r, y_r, z_r, x_l, y_l, z_l, zax_cfg, z_n, nap, l_src, depth, gloss]
+    ThreeDAxes: [x_r, y_r, z_r, x_l, y_l, z_l, zax_cfg, z_n, nap, l_src, depth, gloss],
+    ParametricFunction: [func, t_r, u_sm],
+    Table: [data, r_lbls, c_lbls, iol],
+    MathTable: [data, r_lbls, c_lbls, iol],
+    ArrowVectorField: [func]
   }
 }
 `
@@ -322,14 +379,21 @@ anim_codebook = {
   ReplacementTransform: rttr,
   TransformMatchingTex: tmtex,
   TransformMatchingShapes: tmsh,
+  FadeTransform: ftr,
+  TransformFromCopy: tfc,
   MoveAlongPath: map,
   Rotate: rot_anim,
   ScaleInPlace: sip,
+  GrowFromCenter: gfc,
+  ShrinkToCenter: stca,
   Indicate: ind,
   Circumscribe: circ,
-  FlashAround: flar,
   Flash: flsh,
   FocusOn: fon,
+  ShowPassingFlash: spf,
+  Wiggle: wgl,
+  ApplyWave: aw,
+  LaggedStart: ls,
   Succession: succ,
   AnimationGroup: agp
 }
@@ -338,10 +402,19 @@ anim_codebook = {
 rate_codebook = {
   smooth: sm,
   linear: ln,
+  double_smooth: dsm,
   ease_in_sine: eis,
   ease_out_sine: eos,
   ease_in_out_sine: eios,
+  ease_in_out_quad: eioq,
+  ease_in_cubic: eic,
+  ease_out_cubic: eoc,
+  rush_from: rf,
+  rush_into: ri,
+  slow_into: si,
   there_and_back: tab,
+  there_and_back_with_pause: tabp,
+  lingering: ling,
   wiggle: wig,
   running_start: rs
 }
@@ -349,6 +422,7 @@ rate_codebook = {
 ### 3. Logic & Updater Codebook (The 'Brain')
 logic_codebook = {
   ValueTracker: vt,
+  DecimalNumber: dn,
   add_updater: au,
   remove_updater: ru,
   always_redraw: alr,
