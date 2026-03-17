@@ -9,7 +9,8 @@ import { z } from 'zod'
 import { asyncHandler } from '../middlewares/error-handler'
 import { authMiddleware } from '../middlewares/auth.middleware'
 import { createLogger } from '../utils/logger'
-import { isOpenAIAvailable, testBackendAIConnection } from '../services/openai-client'
+import { testBackendAIConnection } from '../services/openai-client'
+import { resolveCustomApiConfigByManimcatKey } from '../utils/manimcat-routing'
 
 const router = express.Router()
 const logger = createLogger('AiTestRoute')
@@ -31,37 +32,40 @@ router.post(
     try {
       const parsed = bodySchema.parse(req.body || {})
       const duration = Date.now() - start
+      const manimcatKey = res.locals.manimcatApiKey as string | undefined
+      const routed = resolveCustomApiConfigByManimcatKey(manimcatKey)
+      const effectiveConfig = parsed.customApiConfig ?? routed
 
-      if (!parsed.customApiConfig && !isOpenAIAvailable()) {
+      if (!effectiveConfig) {
         return res.status(200).json({
           success: true,
           mode: 'backend',
           warning:
-            'Backend is reachable, but no default upstream AI is configured. Configure a provider (URL + Key) to test upstream, or set server env OPENAI_API_KEY.',
+            'Backend is reachable, but no upstream AI is configured for this key. Configure MANIMCAT_ROUTE_API_URLS/MANIMCAT_ROUTE_API_KEYS/MANIMCAT_ROUTE_MODELS or pass customApiConfig (apiUrl/apiKey/model).',
           duration
         })
       }
 
-      const result = await testBackendAIConnection(parsed.customApiConfig)
+      if (!effectiveConfig.model || !effectiveConfig.model.trim()) {
+        return res.status(200).json({
+          success: true,
+          mode: parsed.customApiConfig ? 'custom' : 'route',
+          warning: 'Backend is reachable, but no model is available (model is empty).',
+          duration
+        })
+      }
+
+      const result = await testBackendAIConnection(effectiveConfig)
 
       return res.status(200).json({
         success: true,
-        mode: parsed.customApiConfig ? 'custom' : 'default',
+        mode: parsed.customApiConfig ? 'custom' : 'route',
         model: result.model,
         content: result.content,
         duration
       })
     } catch (error) {
       const duration = Date.now() - start
-
-      if (error instanceof Error && error.message === 'OpenAI client is unavailable') {
-        return res.status(400).json({
-          success: false,
-          error: error.message,
-          hint: 'Set server env OPENAI_API_KEY or pass customApiConfig (apiUrl/apiKey) from the frontend provider config.',
-          duration
-        })
-      }
 
       if (error instanceof OpenAI.APIError) {
         logger.error('后端 AI 测试失败', {
@@ -86,6 +90,7 @@ router.post(
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
+        hint: 'Configure MANIMCAT_ROUTE_API_URLS/MANIMCAT_ROUTE_API_KEYS/MANIMCAT_ROUTE_MODELS or pass customApiConfig (apiUrl/apiKey/model).',
         duration
       })
     }

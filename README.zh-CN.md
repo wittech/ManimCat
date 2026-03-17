@@ -188,14 +188,11 @@
 | `REDIS_PORT` | `6379` | Redis 端口 |
 | `REDIS_PASSWORD` | - | Redis 密码（如需） |
 | `REDIS_DB` | `0` | Redis 数据库 |
-| `OPENAI_API_KEY` | - | 默认后端 AI 的 API Key（若全部使用路由/custom API，可不填） |
-| `OPENAI_MODEL` | `glm-4-flash` | OpenAI 模型 |
 | `OPENAI_TIMEOUT` | `600000` | OpenAI 请求超时（毫秒） |
-| `CUSTOM_API_URL` | - | 自定义 OpenAI 兼容 API |
 | `MANIMCAT_ROUTE_KEYS` | - | 按 ManimCat key 进行上游映射的 key 列表（逗号/换行分隔） |
 | `MANIMCAT_ROUTE_API_URLS` | - | 上游 API 地址列表（与 `MANIMCAT_ROUTE_KEYS` 按索引配对） |
 | `MANIMCAT_ROUTE_API_KEYS` | - | 上游 API 密钥列表（与 `MANIMCAT_ROUTE_KEYS` 按索引配对） |
-| `MANIMCAT_ROUTE_MODELS` | - | 上游模型列表（可选，缺失时回退 `OPENAI_MODEL`） |
+| `MANIMCAT_ROUTE_MODELS` | - | 上游模型列表（与 `MANIMCAT_ROUTE_KEYS` 按索引配对）。留空表示禁用该 key（无可用模型） |
 | `AI_TEMPERATURE` | `0.7` | 生成温度 |
 | `AI_MAX_TOKENS` | `1200` | 生成最大 tokens |
 | `DESIGNER_TEMPERATURE` | `0.8` | 设计师温度 |
@@ -220,8 +217,6 @@
 PORT=3000
 REDIS_HOST=localhost
 REDIS_PORT=6379
-OPENAI_API_KEY=your-api-key-here
-OPENAI_MODEL=glm-4-flash
 OPENAI_TIMEOUT=600000
 AI_TEMPERATURE=0.7
 CODE_RETRY_MAX_RETRIES=4
@@ -233,9 +228,8 @@ MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 
 **上游选择优先级（高 -> 低）**
 
-1. `MANIMCAT_ROUTE_*` 命中当前 Bearer key
-2. 请求体 `customApiConfig`
-3. 服务端默认 `OPENAI_API_KEY + OPENAI_MODEL + CUSTOM_API_URL`
+1. 请求体 `customApiConfig`（前端“激活自定义”时）
+2. `MANIMCAT_ROUTE_*` 命中当前 Bearer key
 
 ## 部署
 

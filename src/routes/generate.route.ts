@@ -38,7 +38,15 @@ async function handleGenerateRequest(req: express.Request, res: express.Response
   const { concept, outputMode, quality, code, customApiConfig, promptOverrides, videoConfig, referenceImages } = parsed
   const authenticatedManimcatApiKey = res.locals.manimcatApiKey as string | undefined
   const routedCustomApiConfig = resolveCustomApiConfigByManimcatKey(authenticatedManimcatApiKey)
-  const effectiveCustomApiConfig = routedCustomApiConfig ?? customApiConfig
+  const effectiveCustomApiConfig = customApiConfig ?? routedCustomApiConfig
+
+  if (!effectiveCustomApiConfig) {
+    throw new ValidationError('未配置上游 AI：请为当前 key 配置 MANIMCAT_ROUTE_API_URLS/MANIMCAT_ROUTE_API_KEYS/MANIMCAT_ROUTE_MODELS，或在请求中提供 customApiConfig')
+  }
+
+  if (!effectiveCustomApiConfig.model || !effectiveCustomApiConfig.model.trim()) {
+    throw new ValidationError('后端可达，但当前 key 未启用任何模型（model 为空）')
+  }
 
   // 清理输入
   if (hasPromptOverrides(promptOverrides)) {
@@ -62,7 +70,7 @@ async function handleGenerateRequest(req: express.Request, res: express.Response
     quality,
     hasPreGeneratedCode: !!code,
     hasCustomApiConfig: !!effectiveCustomApiConfig,
-    routeByManimcatKey: !!routedCustomApiConfig,
+    routeByManimcatKey: !customApiConfig && !!routedCustomApiConfig,
     referenceImageCount: sanitizedReferenceImages?.length || 0,
     videoConfig
   })

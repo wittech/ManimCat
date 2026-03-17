@@ -59,24 +59,28 @@
           "description": "Redis database number"
         },
         {
-          "key": "OPENAI_API_KEY",
-          "description": "OpenAI API key for AI code generation (required)",
+          "key": "MANIMCAT_ROUTE_KEYS",
+          "value": "",
+          "description": "Allowed ManimCat API keys (Bearer). 1:1 mapping with upstream profiles. Comma/newline separated.",
           "required": true
         },
         {
-          "key": "OPENAI_MODEL",
-          "value": "glm-4-flash",
-          "description": "OpenAI-compatible model (glm-4-flash/gpt-4o-mini/gpt-4-turbo, etc.)"
+          "key": "MANIMCAT_ROUTE_API_URLS",
+          "value": "",
+          "description": "Upstream OpenAI-compatible base URLs for each route profile. Comma/newline separated.",
+          "required": true
         },
         {
-          "key": "CUSTOM_API_URL",
+          "key": "MANIMCAT_ROUTE_API_KEYS",
           "value": "",
-          "description": "Custom OpenAI-compatible API endpoint (optional)"
+          "description": "Upstream API keys for each route profile. Comma/newline separated.",
+          "required": true
         },
         {
-          "key": "MANIMCAT_API_KEY",
+          "key": "MANIMCAT_ROUTE_MODELS",
           "value": "",
-          "description": "API key for authentication (optional, leave empty to disable auth)"
+          "description": "Upstream model names for each route profile. Leave empty to disable a key. Comma/newline separated.",
+          "required": true
         },
         {
           "key": "DISPLAY",

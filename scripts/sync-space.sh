@@ -28,9 +28,12 @@ fi
 # 创建 orphan 分支（无历史快照）
 git checkout --orphan "$TEMP_BRANCH"
 
+# 添加当前工作树快照（orphan 分支不会自动 stage）
+git add -A
+
 # 排除 HF 禁止的二进制文件
 for pattern in "${EXCLUDE_PATTERNS[@]}"; do
-  git rm -rf --cached $pattern 2>/dev/null || true
+  git rm -rf --cached --ignore-unmatch $pattern 2>/dev/null || true
 done
 
 git commit -m "Sync from main: $(git log $SOURCE_BRANCH -1 --format='%h %s')"

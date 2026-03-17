@@ -10,13 +10,16 @@ import { createChatCompletionText } from '../openai-stream'
 
 const logger = createLogger('CodeRetryCodeGen')
 
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'glm-4-flash'
 const AI_TEMPERATURE = parseFloat(process.env.AI_TEMPERATURE || '0.7')
 const MAX_TOKENS = parseInt(process.env.AI_MAX_TOKENS || '1200', 10)
 
 function getModel(customApiConfig?: unknown): string {
   const model = (customApiConfig as { model?: string } | undefined)?.model
-  return model?.trim() || OPENAI_MODEL
+  const trimmed = model?.trim() || ''
+  if (!trimmed) {
+    throw new Error('No model available')
+  }
+  return trimmed
 }
 
 export async function generateInitialCode(
@@ -25,7 +28,7 @@ export async function generateInitialCode(
 ): Promise<string> {
   const client = getClient(customApiConfig as any)
   if (!client) {
-    throw new Error('OpenAI 客户端不可用')
+    throw new Error('No upstream AI is configured for this request')
   }
 
   try {
@@ -82,7 +85,7 @@ export async function retryCodeGeneration(
 ): Promise<string> {
   const client = getClient(customApiConfig as any)
   if (!client) {
-    throw new Error('OpenAI 客户端不可用')
+    throw new Error('No upstream AI is configured for this request')
   }
 
   const retryPrompt = buildRetryPrompt(context, errorMessage, attempt, currentCode)

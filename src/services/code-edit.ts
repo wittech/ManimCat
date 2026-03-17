@@ -2,20 +2,13 @@ import OpenAI from 'openai'
 import { createLogger } from '../utils/logger'
 import { generateCodeEditPrompt, getRoleSystemPrompt, getSharedModule } from '../prompts'
 import type { CustomApiConfig, OutputMode, PromptOverrides } from '../types'
-import {
-  createCustomOpenAIClient,
-  initializeDefaultOpenAIClient
-} from './openai-client-factory'
+import { createCustomOpenAIClient } from './openai-client-factory'
 import { createChatCompletionText } from './openai-stream'
 
 const logger = createLogger('CodeEditService')
 
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'glm-4-flash'
 const CODER_TEMPERATURE = parseFloat(process.env.AI_TEMPERATURE || '0.7')
 const MAX_TOKENS = parseInt(process.env.AI_MAX_TOKENS || '1200', 10)
-const openaiClient: OpenAI | null = initializeDefaultOpenAIClient((error) => {
-  logger.warn('OpenAI 客户端初始化失败', { error })
-})
 
 function createCustomClient(config: CustomApiConfig): OpenAI {
   return createCustomOpenAIClient(config)
@@ -64,12 +57,14 @@ export async function generateEditedManimCode(
   customApiConfig?: CustomApiConfig,
   promptOverrides?: PromptOverrides
 ): Promise<string> {
-  const client = customApiConfig ? createCustomClient(customApiConfig) : openaiClient
-
-  if (!client) {
-    logger.warn('OpenAI 客户端不可用')
-    return ''
+  if (!customApiConfig) {
+    throw new Error('No upstream AI is configured for this request')
   }
+  const model = customApiConfig.model?.trim() || ''
+  if (!model) {
+    throw new Error('No model available')
+  }
+  const client = createCustomClient(customApiConfig)
 
   try {
     const baseSystemPrompt = getRoleSystemPrompt('codeEdit', promptOverrides)
@@ -81,8 +76,6 @@ export async function generateEditedManimCode(
     const userPrompt = baseUserPrompt
 
     logger.info('开始 AI 修改代码', { concept, outputMode })
-
-    const model = customApiConfig?.model?.trim() || OPENAI_MODEL
 
     const { content, mode } = await createChatCompletionText(
       client,
@@ -125,6 +118,5 @@ export async function generateEditedManimCode(
 }
 
 export function isCodeEditAvailable(): boolean {
-  return openaiClient !== null
+  return true
 }
-

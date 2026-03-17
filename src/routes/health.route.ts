@@ -15,6 +15,7 @@ import { appConfig } from '../config/app'
 import { asyncHandler } from '../middlewares/error-handler'
 import { createLogger } from '../utils/logger'
 import type { HealthCheckResponse } from '../types'
+import { getManimcatRouteStats } from '../utils/manimcat-routing'
 
 const router = express.Router()
 const logger = createLogger('HealthRoute')
@@ -44,8 +45,9 @@ router.get(
       stats = await getQueueStats()
     }
 
-    // 检查 OpenAI 配置
-    const openaiHealthy = !!appConfig.openai.apiKey
+    // 检查上游配置（路由表中至少有一个启用模型）
+    const { enabledModels } = getManimcatRouteStats()
+    const openaiHealthy = enabledModels > 0
 
     // 确定整体状态
     let overallStatus: 'ok' | 'degraded' | 'down' = 'ok'

@@ -25,7 +25,7 @@ export function providerToCustomApiConfig(provider: AIProvider | null): CustomAp
     return undefined;
   }
 
-  if (!apiUrl || !apiKey) {
+  if (!apiUrl || !apiKey || !model) {
     return undefined;
   }
 

@@ -7,32 +7,19 @@
 import OpenAI from 'openai'
 import { createLogger } from '../utils/logger'
 import type { CustomApiConfig, OutputMode, PromptOverrides, ReferenceImage } from '../types'
-import { createCustomOpenAIClient, initializeDefaultOpenAIClient } from './openai-client-factory'
+import { createCustomOpenAIClient } from './openai-client-factory'
 import { generateSceneDesignStage } from './concept-designer/scene-design-stage'
 import { generateCodeFromDesignStage } from './concept-designer/code-from-design-stage'
 
 const logger = createLogger('ConceptDesigner')
 
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'glm-4-flash'
 const DESIGNER_TEMPERATURE = parseFloat(process.env.DESIGNER_TEMPERATURE || '0.8')
 const CODER_TEMPERATURE = parseFloat(process.env.AI_TEMPERATURE || '0.7')
 const MAX_TOKENS = parseInt(process.env.AI_MAX_TOKENS || '1200', 10)
 const DESIGNER_MAX_TOKENS = parseInt(process.env.DESIGNER_MAX_TOKENS || '12000', 10)
 
-const openaiClient: OpenAI | null = initializeDefaultOpenAIClient((error) => {
-  logger.warn('OpenAI 客户端初始化失败', { error })
-})
-
 function createCustomClient(config: CustomApiConfig): OpenAI {
   return createCustomOpenAIClient(config)
-}
-
-function resolveClient(customApiConfig?: CustomApiConfig): OpenAI | null {
-  return customApiConfig ? createCustomClient(customApiConfig) : openaiClient
-}
-
-function resolveModel(customApiConfig?: CustomApiConfig): string {
-  return customApiConfig?.model?.trim() || OPENAI_MODEL
 }
 
 /**
@@ -54,13 +41,15 @@ export async function generateTwoStageAIManimCode(
     hasImages: !!referenceImages?.length
   })
 
-  const client = resolveClient(customApiConfig)
-  if (!client) {
-    logger.warn('OpenAI 客户端不可用')
-    return { code: '', sceneDesign: '' }
+  if (!customApiConfig) {
+    throw new Error('No upstream AI is configured for this request')
+  }
+  const model = (customApiConfig.model || '').trim()
+  if (!model) {
+    throw new Error('No model available')
   }
 
-  const model = resolveModel(customApiConfig)
+  const client = createCustomClient(customApiConfig)
   if (onCheckpoint) await onCheckpoint()
 
   const sceneDesign = await generateSceneDesignStage({
@@ -102,9 +91,6 @@ export async function generateTwoStageAIManimCode(
   return { code, sceneDesign }
 }
 
-/**
- * 检查 OpenAI 客户端是否可用
- */
 export function isOpenAIAvailable(): boolean {
-  return openaiClient !== null
+  return true
 }

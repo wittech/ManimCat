@@ -77,3 +77,12 @@ export function resolveCustomApiConfigByManimcatKey(
   return routingTable.get(manimcatApiKey.trim())
 }
 
+export function getManimcatRouteStats(): { profiles: number; enabledModels: number } {
+  let enabledModels = 0
+  for (const config of routingTable.values()) {
+    if (config.model && config.model.trim()) {
+      enabledModels += 1
+    }
+  }
+  return { profiles: routingTable.size, enabledModels }
+}

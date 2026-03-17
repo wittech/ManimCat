@@ -31,7 +31,7 @@ function hasIncompleteCustomProvider(provider: { apiUrl: string; apiKey: string;
     return false;
   }
   const hasAny = Boolean(provider.apiUrl.trim() || provider.apiKey.trim() || provider.model.trim());
-  const hasRequired = Boolean(provider.apiUrl.trim() && provider.apiKey.trim());
+  const hasRequired = Boolean(provider.apiUrl.trim() && provider.apiKey.trim() && provider.model.trim());
   return hasAny && !hasRequired;
 }
 

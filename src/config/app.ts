@@ -35,13 +35,10 @@ export const appConfig = {
     pretty: process.env.NODE_ENV === 'development'
   },
 
-  // OpenAI 配置
-  openai: {
-    apiKey: process.env.OPENAI_API_KEY,
-    model: process.env.OPENAI_MODEL || 'glm-4-flash',
+  // AI 配置（上游地址/密钥/模型由 MANIMCAT_ROUTE_* 或请求 customApiConfig 提供）
+  ai: {
     temperature: parseFloat(process.env.AI_TEMPERATURE || '0.7'),
-    maxTokens: parseInt(process.env.AI_MAX_TOKENS || '1200', 10),
-    customApiUrl: process.env.CUSTOM_API_URL?.trim()
+    maxTokens: parseInt(process.env.AI_MAX_TOKENS || '1200', 10)
   },
 
   // Manim 配置
@@ -65,14 +62,15 @@ export const appConfig = {
  * 验证必需的环境变量
  */
 export function validateConfig(): void {
-  const openaiApiKey = process.env.OPENAI_API_KEY?.trim()
   const routeKeys = process.env.MANIMCAT_ROUTE_KEYS?.trim()
+  const routeApiUrls = process.env.MANIMCAT_ROUTE_API_URLS?.trim()
   const routeApiKeys = process.env.MANIMCAT_ROUTE_API_KEYS?.trim()
-  const hasRouteBasedUpstream = Boolean(routeKeys && routeApiKeys)
+  const routeModels = process.env.MANIMCAT_ROUTE_MODELS?.trim()
+  const hasRouteBasedUpstream = Boolean(routeKeys && routeApiUrls && routeApiKeys && routeModels)
 
-  if (!openaiApiKey && !hasRouteBasedUpstream) {
+  if (!hasRouteBasedUpstream) {
     console.warn(
-      '[Config] No default OPENAI_API_KEY and no MANIMCAT_ROUTE_* upstream mapping found. AI requests need customApiConfig per request.'
+      '[Config] No MANIMCAT_ROUTE_* upstream mapping found. AI requests need customApiConfig per request.'
     )
   }
 }
@@ -99,7 +97,6 @@ export function printConfig(): void {
   console.log(`  - Environment: ${appConfig.nodeEnv}`)
   console.log(`  - Port: ${appConfig.port}`)
   console.log(`  - Host: ${appConfig.host}`)
-  console.log(`  - OpenAI Model: ${appConfig.openai.model}`)
   console.log(`  - CORS Origin: ${appConfig.cors.origin}`)
   console.log(`  - LOG_LEVEL: ${process.env.LOG_LEVEL || 'info'}`)
   console.log(`  - PROD_SUMMARY_LOG_ONLY: ${process.env.PROD_SUMMARY_LOG_ONLY ?? '(unset, defaults to true in production)'}`)

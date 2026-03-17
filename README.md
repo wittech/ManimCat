@@ -205,14 +205,11 @@ User request -> POST /api/generate (outputMode: video | image)
 | `REDIS_PORT` | `6379` | Redis port |
 | `REDIS_PASSWORD` | - | Redis password, if needed |
 | `REDIS_DB` | `0` | Redis database |
-| `OPENAI_API_KEY` | - | Default backend AI API key. Not required if everything is routed through route/custom API config |
-| `OPENAI_MODEL` | `glm-4-flash` | OpenAI model |
 | `OPENAI_TIMEOUT` | `600000` | OpenAI request timeout in milliseconds |
-| `CUSTOM_API_URL` | - | Custom OpenAI-compatible API endpoint |
 | `MANIMCAT_ROUTE_KEYS` | - | List of ManimCat keys for upstream mapping, separated by commas or new lines |
 | `MANIMCAT_ROUTE_API_URLS` | - | Upstream API URLs matched to `MANIMCAT_ROUTE_KEYS` by index |
 | `MANIMCAT_ROUTE_API_KEYS` | - | Upstream API keys matched to `MANIMCAT_ROUTE_KEYS` by index |
-| `MANIMCAT_ROUTE_MODELS` | - | Upstream models, optional, falls back to `OPENAI_MODEL` when omitted |
+| `MANIMCAT_ROUTE_MODELS` | - | Upstream models matched to `MANIMCAT_ROUTE_KEYS` by index. Leave empty to disable a key (no model available) |
 | `AI_TEMPERATURE` | `0.7` | Generation temperature |
 | `AI_MAX_TOKENS` | `1200` | Maximum generation tokens |
 | `DESIGNER_TEMPERATURE` | `0.8` | Designer temperature |
@@ -237,8 +234,6 @@ User request -> POST /api/generate (outputMode: video | image)
 PORT=3000
 REDIS_HOST=localhost
 REDIS_PORT=6379
-OPENAI_API_KEY=your-api-key-here
-OPENAI_MODEL=glm-4-flash
 OPENAI_TIMEOUT=600000
 AI_TEMPERATURE=0.7
 CODE_RETRY_MAX_RETRIES=4
@@ -250,9 +245,8 @@ MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 
 **Upstream selection priority, from high to low**
 
-1. `MANIMCAT_ROUTE_*` matching the current Bearer key
-2. `customApiConfig` in the request body
-3. Server defaults: `OPENAI_API_KEY + OPENAI_MODEL + CUSTOM_API_URL`
+1. request body `customApiConfig` (when enabled on the frontend)
+2. `MANIMCAT_ROUTE_*` matching the current Bearer key
 
 ## Deployment
 

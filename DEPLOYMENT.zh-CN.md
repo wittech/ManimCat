@@ -22,13 +22,7 @@ cd ManimCat
 cp .env.example .env
 ```
 
-在 `.env` 中至少设置一类 AI 来源：
-
-```env
-OPENAI_API_KEY=your-openai-api-key
-```
-
-或使用按 key 分流（无需默认后端 key）：
+在 `.env` 中配置服务端按 key 分流（推荐）：
 
 ```env
 MANIMCAT_ROUTE_KEYS=user_key_a,user_key_b
@@ -40,12 +34,6 @@ MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 可选：
 
 ```env
-OPENAI_MODEL=glm-4-flash
-CUSTOM_API_URL=https://your-proxy-api/v1
-MANIMCAT_ROUTE_KEYS=user_key_a,user_key_b
-MANIMCAT_ROUTE_API_URLS=https://api-a.example.com/v1,https://api-b.example.com/v1
-MANIMCAT_ROUTE_API_KEYS=sk-a,sk-b
-MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 LOG_LEVEL=info
 PROD_SUMMARY_LOG_ONLY=false
 OPENAI_STREAM_INCLUDE_USAGE=false
@@ -82,13 +70,7 @@ npm start
 cp .env.production .env
 ```
 
-在 `.env` 中至少设置一类 AI 来源：
-
-```env
-OPENAI_API_KEY=your-openai-api-key
-```
-
-或使用按 key 分流（无需默认后端 key）：
+在 `.env` 中配置服务端按 key 分流（推荐）：
 
 ```env
 MANIMCAT_ROUTE_KEYS=user_key_a,user_key_b
@@ -161,13 +143,9 @@ PORT=7860
 NODE_ENV=production
 ```
 
-并配置一类 AI 来源（任选其一）：
+并配置服务端按 key 分流：
 
 ```env
-# 方式 A：默认后端 AI
-OPENAI_API_KEY=your-openai-api-key
-
-# 方式 B：按 key 分流（可不填 OPENAI_API_KEY）
 MANIMCAT_ROUTE_KEYS=user_key_a,user_key_b
 MANIMCAT_ROUTE_API_URLS=https://api-a.example.com/v1,https://api-b.example.com/v1
 MANIMCAT_ROUTE_API_KEYS=sk-a,sk-b
@@ -177,12 +155,6 @@ MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 可选：
 
 ```env
-OPENAI_MODEL=glm-4-flash
-CUSTOM_API_URL=https://your-proxy-api/v1
-MANIMCAT_ROUTE_KEYS=user_key_a,user_key_b
-MANIMCAT_ROUTE_API_URLS=https://api-a.example.com/v1,https://api-b.example.com/v1
-MANIMCAT_ROUTE_API_KEYS=sk-a,sk-b
-MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 LOG_LEVEL=info
 PROD_SUMMARY_LOG_ONLY=true
 OPENAI_STREAM_INCLUDE_USAGE=true
@@ -231,14 +203,13 @@ MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 1. 以上四组变量都支持逗号或换行分隔。
 2. 以 `MANIMCAT_ROUTE_KEYS` 为主索引逐项配对。
 3. `apiUrl` 或 `apiKey` 缺失的条目会被跳过。
-4. `model` 可留空，留空时回退到 `OPENAI_MODEL`。
+4. `model` 留空表示禁用该 key（后端可达但无可用模型）。
 5. `MANIMCAT_ROUTE_KEYS` 本身就是认证白名单。
 
 ### 上游选择优先级（高 -> 低）
 
-1. 命中 `MANIMCAT_ROUTE_*`（按 Bearer key 映射）
-2. 请求体 `customApiConfig`（前端自定义 API）
-3. 后端默认 `OPENAI_API_KEY + CUSTOM_API_URL + OPENAI_MODEL`
+1. 请求体 `customApiConfig`（前端“激活自定义”时）
+2. 命中 `MANIMCAT_ROUTE_*`（按 Bearer key 映射）
 
 ## 前端多组 Custom API（可选）
 

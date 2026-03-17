@@ -40,10 +40,11 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=${REDIS_DB:-0}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required}
-      - OPENAI_MODEL=${OPENAI_MODEL:-glm-4-flash}
-      - CUSTOM_API_URL=${CUSTOM_API_URL:-}
-      - MANIMCAT_API_KEY=${MANIMCAT_API_KEY:-}
+      # Upstream routing (required for server-side generation unless frontend passes customApiConfig)
+      - MANIMCAT_ROUTE_KEYS=${MANIMCAT_ROUTE_KEYS:-}
+      - MANIMCAT_ROUTE_API_URLS=${MANIMCAT_ROUTE_API_URLS:-}
+      - MANIMCAT_ROUTE_API_KEYS=${MANIMCAT_ROUTE_API_KEYS:-}
+      - MANIMCAT_ROUTE_MODELS=${MANIMCAT_ROUTE_MODELS:-}
       - DISPLAY=:99
     volumes:
       # Persist generated videos

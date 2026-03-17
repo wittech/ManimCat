@@ -320,7 +320,7 @@ export async function createChatCompletionText(
       const response = await client.chat.completions.create({
         ...request,
         stream: false
-      } as OpenAI.Chat.Completions.ChatCompletionCreateParams)
+      } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming)
 
       const fallbackContent = response.choices?.[0]?.message?.content
       const normalized = typeof fallbackContent === 'string' ? fallbackContent : ''

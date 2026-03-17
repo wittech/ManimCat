@@ -10,6 +10,7 @@ import { asyncHandler } from '../middlewares/error-handler'
 import { authMiddleware } from '../middlewares/auth.middleware'
 import { createLogger } from '../utils/logger'
 import { listBackendAIModels } from '../services/openai-client'
+import { resolveCustomApiConfigByManimcatKey } from '../utils/manimcat-routing'
 
 const router = express.Router()
 const logger = createLogger('AiModelsRoute')
@@ -32,7 +33,22 @@ router.post(
 
     try {
       const parsed = bodySchema.parse(req.body || {})
-      const models = await listBackendAIModels(parsed.customApiConfig)
+      const manimcatKey = res.locals.manimcatApiKey as string | undefined
+      const routed = resolveCustomApiConfigByManimcatKey(manimcatKey)
+      const effectiveConfig = parsed.customApiConfig ?? routed
+
+      if (!effectiveConfig) {
+        const duration = Date.now() - start
+        return res.status(200).json({
+          success: true,
+          models: [],
+          warning:
+            'Backend is reachable, but no upstream AI is configured for this key. Configure MANIMCAT_ROUTE_API_URLS/MANIMCAT_ROUTE_API_KEYS to fetch models, or pass customApiConfig (apiUrl/apiKey).',
+          duration
+        })
+      }
+
+      const models = await listBackendAIModels(effectiveConfig)
       const duration = Date.now() - start
 
       return res.status(200).json({
@@ -73,4 +89,3 @@ router.post(
 )
 
 export default router
-

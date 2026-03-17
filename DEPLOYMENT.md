@@ -30,12 +30,6 @@ cp .env.example .env
 Configure at least one AI source:
 
 ```env
-OPENAI_API_KEY=your-openai-api-key
-```
-
-Or configure server-side upstream routing:
-
-```env
 MANIMCAT_ROUTE_KEYS=user_key_a,user_key_b
 MANIMCAT_ROUTE_API_URLS=https://api-a.example.com/v1,https://api-b.example.com/v1
 MANIMCAT_ROUTE_API_KEYS=sk-a,sk-b
@@ -45,8 +39,6 @@ MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 Optional:
 
 ```env
-OPENAI_MODEL=glm-4-flash
-CUSTOM_API_URL=https://your-proxy-api/v1
 LOG_LEVEL=info
 PROD_SUMMARY_LOG_ONLY=false
 OPENAI_STREAM_INCLUDE_USAGE=false
@@ -85,12 +77,6 @@ cp .env.production .env
 ```
 
 Set at least one AI source:
-
-```env
-OPENAI_API_KEY=your-openai-api-key
-```
-
-Or use key-based upstream routing:
 
 ```env
 MANIMCAT_ROUTE_KEYS=user_key_a,user_key_b
@@ -149,12 +135,6 @@ NODE_ENV=production
 And one AI source:
 
 ```env
-OPENAI_API_KEY=your-openai-api-key
-```
-
-Or:
-
-```env
 MANIMCAT_ROUTE_KEYS=user_key_a,user_key_b
 MANIMCAT_ROUTE_API_URLS=https://api-a.example.com/v1,https://api-b.example.com/v1
 MANIMCAT_ROUTE_API_KEYS=sk-a,sk-b
@@ -197,14 +177,13 @@ Rules:
 1. All four variables support comma-separated or newline-separated values.
 2. `MANIMCAT_ROUTE_KEYS` is the primary index.
 3. Entries without `apiUrl` or `apiKey` are skipped.
-4. Empty `model` falls back to `OPENAI_MODEL`.
+4. Empty `model` disables that key (backend is reachable but no model is available).
 5. `MANIMCAT_ROUTE_KEYS` also acts as the auth whitelist.
 
 Priority:
 
-1. `MANIMCAT_ROUTE_*`
-2. request body `customApiConfig`
-3. server defaults
+1. request body `customApiConfig` (when enabled on the frontend)
+2. `MANIMCAT_ROUTE_*` matching the current Bearer key
 
 ---
 

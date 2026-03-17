@@ -60,7 +60,7 @@ function resolveCustomApiConfig(provider: AIProvider): CustomApiConfig | null {
   if (!hasAny) {
     return null;
   }
-  if (!apiUrl || !apiKey) {
+  if (!apiUrl || !apiKey || !model) {
     return null;
   }
   return { apiUrl, apiKey, model };
