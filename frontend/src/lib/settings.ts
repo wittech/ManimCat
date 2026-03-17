@@ -13,7 +13,8 @@ export const DEFAULT_SETTINGS: SettingsConfig = {
   video: {
     quality: 'low',
     frameRate: 15,
-    timeout: 1200
+    timeout: 1200,
+    bgm: true
   }
 };
 
@@ -86,6 +87,7 @@ function sanitizeSettings(raw: unknown): SettingsConfig {
   const quality = parsed.video?.quality;
   const frameRate = parsed.video?.frameRate;
   const timeout = parsed.video?.timeout;
+  const bgm = parsed.video?.bgm;
   const providers = sanitizeProviders((parsed.api as unknown as { providers?: unknown } | undefined)?.providers);
   const activeProviderIdRaw = (parsed.api as unknown as { activeProviderId?: unknown } | undefined)?.activeProviderId;
   const activeProviderId =
@@ -109,7 +111,8 @@ function sanitizeSettings(raw: unknown): SettingsConfig {
     video: {
       quality: quality === 'low' || quality === 'medium' || quality === 'high' ? quality : DEFAULT_SETTINGS.video.quality,
       frameRate: typeof frameRate === 'number' ? frameRate : DEFAULT_SETTINGS.video.frameRate,
-      timeout: typeof timeout === 'number' ? timeout : DEFAULT_SETTINGS.video.timeout
+      timeout: typeof timeout === 'number' ? timeout : DEFAULT_SETTINGS.video.timeout,
+      bgm: typeof bgm === 'boolean' ? bgm : DEFAULT_SETTINGS.video.bgm
     }
   };
 }

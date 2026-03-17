@@ -20,6 +20,8 @@ export interface VideoConfig {
   frameRate: number
   /** 瓒呮椂鏃堕棿锛堢锛夛紝榛樿 1200 绉掞紙20 鍒嗛挓锛? */
   timeout?: number
+  /** 是否添加背景音乐 */
+  bgm?: boolean
 }
 
 /**

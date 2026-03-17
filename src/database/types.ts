@@ -12,6 +12,7 @@ export interface HistoryRow {
   output_mode: 'video' | 'image'
   quality: 'low' | 'medium' | 'high'
   status: 'completed' | 'failed'
+  error?: string | null
   created_at: string
 }
 
@@ -23,6 +24,7 @@ export interface CreateHistoryInput {
   output_mode: 'video' | 'image'
   quality: 'low' | 'medium' | 'high'
   status: 'completed' | 'failed'
+  error?: string | null
 }
 
 /** 分页查询结果 */

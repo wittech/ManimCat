@@ -17,6 +17,8 @@ interface StatusContentProps {
   error: string | null;
   jobId: string | null;
   stage: ProcessingStage;
+  concept: string;
+  onConceptChange: (value: string) => void;
   currentCode: string;
   isBusy: boolean;
   lastRequest: LastRequest | null;
@@ -34,6 +36,8 @@ export function StatusContent({
   error,
   jobId,
   stage,
+  concept,
+  onConceptChange,
   currentCode,
   isBusy,
   lastRequest,
@@ -47,7 +51,7 @@ export function StatusContent({
   const { t } = useI18n();
 
   if (status === 'idle') {
-    return <InputForm onSubmit={onSubmit} loading={false} />;
+    return <InputForm concept={concept} onConceptChange={onConceptChange} onSubmit={onSubmit} loading={false} />;
   }
 
   if (status === 'processing') {
@@ -61,7 +65,7 @@ export function StatusContent({
   if (status === 'completed' && result) {
     return (
       <div
-        className="space-y-6 animate-fade-in"
+        className="max-w-5xl mx-auto space-y-6 animate-fade-in"
         style={{
           animation: 'fadeInUp 0.5s ease-out forwards',
         }}
@@ -94,25 +98,24 @@ export function StatusContent({
 
   if (status === 'error') {
     return (
-      <div className="bg-red-50/80 dark:bg-red-900/20 rounded-2xl p-6">
-        <div className="flex items-start gap-3">
-          <div className="text-red-500 mt-0.5">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div className="flex-1">
-            <p className="text-text-primary font-medium mb-1">{t('result.errorTitle')}</p>
-            <p className="text-text-secondary text-sm">{error || t('result.errorFallback')}</p>
+      <div className="space-y-6">
+        <div className="bg-red-50/80 dark:bg-red-900/20 rounded-2xl p-6">
+          <div className="flex items-start gap-3">
+            <div className="text-red-500 mt-0.5">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-text-primary font-medium mb-1">{t('result.errorTitle')}</p>
+              <p className="text-text-secondary text-sm">{error || t('result.errorFallback')}</p>
+            </div>
           </div>
         </div>
-        <div className="mt-4 flex gap-3">
-          <button
-            onClick={onResetAll}
-            className="px-4 py-2 text-sm text-accent hover:text-accent-hover transition-colors"
-          >
-            {t('common.retry')}
-          </button>
+
+        <div className="text-center">
+          <p className="text-sm text-text-secondary/70 mb-4">{t('result.errorHint')}</p>
+          <InputForm concept={concept} onConceptChange={onConceptChange} onSubmit={onSubmit} loading={isBusy} />
         </div>
       </div>
     );

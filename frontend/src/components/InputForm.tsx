@@ -9,6 +9,8 @@ import { useReferenceImages } from './input-form/use-reference-images';
 import { useI18n } from '../i18n';
 
 interface InputFormProps {
+  concept: string;
+  onConceptChange: (value: string) => void;
   onSubmit: (data: {
     concept: string;
     quality: Quality;
@@ -18,10 +20,9 @@ interface InputFormProps {
   loading: boolean;
 }
 
-export function InputForm({ onSubmit, loading }: InputFormProps) {
+export function InputForm({ concept, onConceptChange, onSubmit, loading }: InputFormProps) {
   const { t } = useI18n();
-  const [concept, setConcept] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [quality, setQuality] = useState<Quality>(loadSettings().video.quality);
   const [outputMode, setOutputMode] = useState<OutputMode>('video');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -41,12 +42,12 @@ export function InputForm({ onSubmit, loading }: InputFormProps) {
 
   const handleSubmit = useCallback(() => {
     if (concept.trim().length < 5) {
-      setError(t('form.error.minLength'));
+      setLocalError(t('form.error.minLength'));
       textareaRef.current?.focus();
       return;
     }
 
-    setError(null);
+    setLocalError(null);
     onSubmit({
       concept: concept.trim(),
       quality,
@@ -69,9 +70,9 @@ export function InputForm({ onSubmit, loading }: InputFormProps) {
 
   useEffect(() => {
     if (concept.length > 0 && concept.length < 5) {
-      setError(t('form.error.minLengthShort'));
+      setLocalError(t('form.error.minLengthShort'));
     } else {
-      setError(null);
+      setLocalError(null);
     }
   }, [concept, t]);
 
@@ -93,10 +94,10 @@ export function InputForm({ onSubmit, loading }: InputFormProps) {
           <label
             htmlFor="concept"
             className={`absolute left-4 -top-2.5 px-2 bg-bg-primary text-xs font-medium transition-all z-10 ${
-              isDragging ? 'text-accent' : error ? 'text-red-500' : 'text-text-secondary'
+              isDragging ? 'text-accent' : localError ? 'text-red-500' : 'text-text-secondary'
             }`}
           >
-            {isDragging ? t('form.label.dragging') : error ? error : t('form.label.default')}
+            {isDragging ? t('form.label.dragging') : localError ? localError : t('form.label.default')}
           </label>
           <textarea
             ref={textareaRef}
@@ -106,11 +107,11 @@ export function InputForm({ onSubmit, loading }: InputFormProps) {
             placeholder={t('form.placeholder')}
             disabled={loading}
             value={concept}
-            onChange={(e) => setConcept(e.target.value)}
+            onChange={(e) => onConceptChange(e.target.value)}
             className={`w-full px-4 py-4 bg-bg-secondary/50 rounded-2xl text-text-primary placeholder-text-secondary/40 focus:outline-none focus:ring-2 transition-all resize-none ${
               isDragging
                 ? 'ring-2 ring-accent/50 bg-accent/5 border-2 border-dashed border-accent/30'
-                : error
+                : localError
                   ? 'focus:ring-red-500/20 bg-red-50/50 dark:bg-red-900/10'
                   : 'focus:ring-accent/20 focus:bg-bg-secondary/70'
             }`}

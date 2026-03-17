@@ -28,6 +28,7 @@ function App() {
   const [aiModifyOpen, setAiModifyOpen] = useState(false);
   const [aiModifyInput, setAiModifyInput] = useState('');
   const [currentCode, setCurrentCode] = useState('');
+  const [concept, setConcept] = useState('');
   const [lastRequest, setLastRequest] = useState<{
     concept: string;
     quality: Quality;
@@ -44,6 +45,7 @@ function App() {
   const resetAll = () => {
     reset();
     setCurrentCode('');
+    setConcept('');
     setLastRequest(null);
     setAiModifyInput('');
     setAiModifyOpen(false);
@@ -55,6 +57,7 @@ function App() {
     outputMode: OutputMode;
     referenceImages?: ReferenceImage[];
   }) => {
+    setConcept(data.concept);
     setLastRequest(data);
     generate(data);
   };
@@ -81,6 +84,7 @@ function App() {
   };
 
   const isBusy = status === 'processing';
+  const isCompleted = status === 'completed';
 
   return (
     <div className="min-h-screen bg-bg-primary transition-colors duration-300 overflow-x-hidden">
@@ -90,14 +94,19 @@ function App() {
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
-      <div className="max-w-4xl mx-auto px-4 min-h-screen flex flex-col justify-center" style={{ paddingTop: '18vh', paddingBottom: '12vh' }}>
-        <div className="text-center mb-12">
-          <div className="flex items-center justify-center gap-4 mb-3">
-            <ManimCatLogo className="w-16 h-16" />
-            <h1 className="text-5xl sm:text-6xl font-light tracking-tight text-text-primary">ManimCat</h1>
+      <div
+        className={`mx-auto px-4 min-h-screen flex flex-col justify-center ${isCompleted ? 'max-w-5xl' : 'max-w-4xl'}`}
+        style={isCompleted ? { paddingTop: '4vh', paddingBottom: '4vh' } : { paddingTop: '18vh', paddingBottom: '12vh' }}
+      >
+        {!isCompleted && (
+          <div className="text-center mb-12">
+            <div className="flex items-center justify-center gap-4 mb-3">
+              <ManimCatLogo className="w-16 h-16" />
+              <h1 className="text-5xl sm:text-6xl font-light tracking-tight text-text-primary">ManimCat</h1>
+            </div>
+            <p className="text-sm text-text-secondary/70 max-w-lg mx-auto">{t('app.subtitle')}</p>
           </div>
-          <p className="text-sm text-text-secondary/70 max-w-lg mx-auto">{t('app.subtitle')}</p>
-        </div>
+        )}
 
         <div className="mb-6">
           <StatusContent
@@ -106,6 +115,8 @@ function App() {
             error={error}
             jobId={jobId}
             stage={stage}
+            concept={concept}
+            onConceptChange={setConcept}
             currentCode={currentCode}
             isBusy={isBusy}
             lastRequest={lastRequest}

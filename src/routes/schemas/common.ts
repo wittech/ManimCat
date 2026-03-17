@@ -49,5 +49,6 @@ export const promptOverridesSchema = z.object({
 export const videoConfigSchema = z.object({
   quality: qualitySchema.optional(),
   frameRate: z.number().int().min(1).max(120).optional(),
-  timeout: z.number().optional()
+  timeout: z.number().optional(),
+  bgm: z.boolean().optional()
 })

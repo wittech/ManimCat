@@ -5,6 +5,7 @@ import { createLogger } from '../../../utils/logger'
 import { cleanManimCode } from '../../../utils/manim-code-cleaner'
 import { executeManimCommand, type ManimExecuteOptions } from '../../../utils/manim-executor'
 import { findVideoFile } from '../../../utils/file-utils'
+import { addBackgroundMusic } from '../../../audio/bgm-mixer'
 import { createRetryContext, executeCodeRetry } from '../../../services/code-retry/manager'
 import { ensureJobNotCancelled } from '../../../services/job-cancel'
 import { storeJobStage } from '../../../services/job-store'
@@ -137,6 +138,11 @@ export async function renderVideo(
     const outputFilename = `${jobId}.mp4`
     const outputPath = path.join(outputDir, outputFilename)
     fs.copyFileSync(videoPath, outputPath)
+
+    // Add background music (default: on)
+    if (videoConfig?.bgm !== false) {
+      await addBackgroundMusic(outputPath)
+    }
 
     return {
       jobId,

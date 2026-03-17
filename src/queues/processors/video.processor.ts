@@ -184,16 +184,17 @@ videoQueue.process(async (job) => {
     })
     await clearJobCancelled(jobId)
 
-    // 写入持久化历史记录（静默失败）
+    // 写入持久化历史记录（保存错误原因和提示词）
     if (data.clientId) {
       try {
         await createHistory({
           client_id: data.clientId,
           prompt: concept,
-          code: null,
+          code: null,  // 失败时没有代码
           output_mode: outputMode as 'video' | 'image',
           quality: quality as 'low' | 'medium' | 'high',
-          status: 'failed'
+          status: 'failed',
+          error: errorMessage
         })
       } catch (histErr) {
         logger.warn('Failed to write history record', { jobId, error: histErr })

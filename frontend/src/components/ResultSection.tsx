@@ -37,13 +37,13 @@ export function ResultSection({
   const hasActions = onRerender || onAiModify;
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-5">
+    <div className="w-full max-w-5xl mx-auto space-y-4">
       {/* 代码与视频预览 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="h-[360px]">
+        <div className="h-[420px]">
           <CodeView code={code} editable={Boolean(onCodeChange)} onChange={onCodeChange} disabled={isBusy} />
         </div>
-        <div className="h-[360px]">
+        <div className="h-[420px]">
           {outputMode === 'image' ? (
             <ImagePreview imageUrls={imageUrls} />
           ) : (
@@ -52,35 +52,34 @@ export function ResultSection({
         </div>
       </div>
 
-      {/* 结果信息 */}
-      <div className="bg-bg-secondary/30 rounded-xl px-4 py-2.5">
-        <p className="text-xs text-text-secondary/70">
+      {/* 底部信息栏 + 操作按钮 */}
+      <div className="flex items-center justify-between border-t border-border/40 pt-3 px-1">
+        <p className="text-xs text-text-secondary/60">
           {outputMode} · {generationType}{usedAI ? ' (AI)' : ''} · {renderQuality}
         </p>
+        {hasActions && (
+          <div className="flex items-center gap-2.5">
+            {onRerender && (
+              <button
+                onClick={onRerender}
+                disabled={isBusy}
+                className="px-4 py-1.5 text-xs font-medium text-text-secondary/80 hover:text-text-primary bg-bg-secondary/30 hover:bg-bg-secondary/50 rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {t('result.rerender')}
+              </button>
+            )}
+            {onAiModify && (
+              <button
+                onClick={onAiModify}
+                disabled={isBusy}
+                className="px-4 py-1.5 text-xs font-medium text-white bg-accent hover:bg-accent-hover rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-accent/20"
+              >
+                {t('result.aiModify')}
+              </button>
+            )}
+          </div>
+        )}
       </div>
-
-      {hasActions && (
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          {onRerender && (
-            <button
-            onClick={onRerender}
-            disabled={isBusy}
-            className="px-5 py-2 text-xs font-medium text-text-secondary/80 hover:text-text-primary bg-bg-secondary/30 hover:bg-bg-secondary/50 rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-              {t('result.rerender')}
-            </button>
-          )}
-          {onAiModify && (
-            <button
-            onClick={onAiModify}
-            disabled={isBusy}
-            className="px-5 py-2 text-xs font-medium text-white bg-accent hover:bg-accent-hover rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-accent/20"
-          >
-              {t('result.aiModify')}
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }
