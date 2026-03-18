@@ -303,3 +303,16 @@ SUPABASE_KEY=your-supabase-anon-key
 ```
 
 当 `ENABLE_HISTORY_DB` 为 `false`（默认值）时，历史记录 API 返回空结果，不会建立数据库连接。
+
+## 可选：渲染失败事件导出
+
+如果你希望采集并导出“仅渲染失败”事件，请增加以下环境变量：
+
+```env
+ENABLE_RENDER_FAILURE_LOG=true
+ADMIN_EXPORT_TOKEN=replace_with_long_random_token
+```
+
+说明：
+- 依赖数据库模式，并需要先执行迁移 `src/database/migrations/002_create_render_failure_events.sql`。
+- 导出接口：`GET /api/admin/render-failures/export`，请求头需携带 `x-admin-token`。

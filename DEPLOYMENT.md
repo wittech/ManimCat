@@ -283,3 +283,16 @@ SUPABASE_KEY=your-supabase-anon-key
 ```
 
 When `ENABLE_HISTORY_DB` is `false` (the default), the history API returns empty results and no database connection is made.
+
+## Optional: Render Failure Event Export
+
+Add these environment variables when you want to collect and export render-failure-only events:
+
+```env
+ENABLE_RENDER_FAILURE_LOG=true
+ADMIN_EXPORT_TOKEN=replace_with_long_random_token
+```
+
+Notes:
+- Requires database mode enabled and migration `src/database/migrations/002_create_render_failure_events.sql` applied.
+- Export endpoint: `GET /api/admin/render-failures/export` with header `x-admin-token`.

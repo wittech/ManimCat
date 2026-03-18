@@ -376,3 +376,7 @@ If this project gave you useful ideas or helped you in some way, that is already
 - Original project author
 - Linux.do community
 - Alibaba Cloud Bailian
+
+## Community Contributions
+
+- 2026-03: A community contributor added standalone render-failure event collection and admin JSON export. The feature captures failed Manim code snippets from model outputs to help diagnose errors and continuously improve service reliability.

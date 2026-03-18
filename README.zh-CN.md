@@ -392,3 +392,7 @@ MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 - 阿里云百炼平台
 
 
+
+## 社区贡献
+
+- 2026-03：社区贡献者新增了独立的渲染失败事件采集与管理员 JSON 导出能力。该能力可收集模型输出中的 Manim 失败代码片段，帮助定位问题并持续改进服务稳定性。
