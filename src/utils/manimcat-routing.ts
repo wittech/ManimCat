@@ -9,9 +9,8 @@ function splitListInput(input: string | undefined): string[] {
   }
 
   return input
-    .split(/[\n,]+/g)
+    .split(/[\n,]/g)
     .map((item) => item.trim())
-    .filter(Boolean)
 }
 
 function valueByIndex(values: string[], index: number): string {
@@ -51,6 +50,13 @@ function loadRoutingTable(): Map<string, CustomApiConfig> {
 
     if (table.has(key)) {
       logger.warn('Duplicate MANIMCAT route key, latest entry wins', {
+        keyPrefix: `${key.slice(0, 4)}...`,
+        index: i
+      })
+    }
+
+    if (!model) {
+      logger.warn('MANIMCAT route entry has empty model', {
         keyPrefix: `${key.slice(0, 4)}...`,
         index: i
       })
