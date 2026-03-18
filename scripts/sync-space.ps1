@@ -54,7 +54,7 @@ try {
 
   foreach ($remote in $Remotes) {
     Write-Host "Pushing to $remote..."
-    git push $remote "$TempBranch:main" --force
+    git push $remote "${TempBranch}:main" --force
     if ($LASTEXITCODE -eq 0) {
       Write-Host "  ? $remote pushed"
     } else {
