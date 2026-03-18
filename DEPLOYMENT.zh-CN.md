@@ -218,13 +218,18 @@ MANIMCAT_ROUTE_MODELS=qwen3.5-plus,gemini-3-flash-preview
 
 ManimCat 支持基于 Supabase 的持久化生成历史。数据库仅存储文字数据（提示词、生成的代码、元数据），**不存储**视频和图片文件。
 
-### 配置步骤
+### 设置
 
-1. 在 [supabase.com](https://supabase.com) 创建免费项目
-2. 在 Supabase SQL Editor 中执行建表脚本：
+1. 在 [supabase.com](https://supabase.com) 创建一个免费项目
+2. 在 Supabase SQL Editor 中运行迁移 SQL 脚本：
 
 ```sql
--- 文件：src/database/migrations/001_create_history.sql
+-- 文件: src/database/migrations/001_create_history.sql
+-- 此脚本设置：
+-- 1. history: 存储任务结果
+-- 2. usage_stats: 存储持久化每日用量
+-- 3. increment_usage: 原子计数器函数 (RPC)
+
 create table if not exists history (
   id          uuid primary key default gen_random_uuid(),
   client_id   text not null,
@@ -233,11 +238,61 @@ create table if not exists history (
   output_mode text not null check (output_mode in ('video', 'image')),
   quality     text not null check (quality in ('low', 'medium', 'high')),
   status      text not null check (status in ('completed', 'failed')),
+  error       text,
   created_at  timestamptz not null default now()
 );
-create index if not exists idx_history_client_created
-  on history (client_id, created_at desc);
+create index if not exists idx_history_client_created on history (client_id, created_at desc);
+create index if not exists idx_history_status on history (status);
+
+create table if not exists usage_stats (
+  date               date primary key,
+  submitted_total    integer default 0,
+  submitted_generate integer default 0,
+  submitted_modify   integer default 0,
+  completed_total    integer default 0,
+  failed_total       integer default 0,
+  cancelled_total    integer default 0,
+  completed_video    integer default 0,
+  completed_image    integer default 0,
+  render_ms_sum      bigint default 0,
+  updated_at         timestamptz default now()
+);
+
+create or replace function increment_usage(
+  target_date date,
+  inc_submitted_total int default 0,
+  inc_submitted_generate int default 0,
+  inc_submitted_modify int default 0,
+  inc_completed_total int default 0,
+  inc_failed_total int default 0,
+  inc_cancelled_total int default 0,
+  inc_completed_video int default 0,
+  inc_completed_image int default 0,
+  inc_render_ms_sum bigint default 0
+)
+returns void
+language plpgsql
+security definer
+as $$
+begin
+  insert into usage_stats (date, submitted_total, submitted_generate, submitted_modify, completed_total, failed_total, cancelled_total, completed_video, completed_image, render_ms_sum)
+  values (target_date, inc_submitted_total, inc_submitted_generate, inc_submitted_modify, inc_completed_total, inc_failed_total, inc_cancelled_total, inc_completed_video, inc_completed_image, inc_render_ms_sum)
+  on conflict (date) do update
+  set
+    submitted_total    = usage_stats.submitted_total + excluded.submitted_total,
+    submitted_generate = usage_stats.submitted_generate + excluded.submitted_generate,
+    submitted_modify   = usage_stats.submitted_modify + excluded.submitted_modify,
+    completed_total    = usage_stats.completed_total + excluded.completed_total,
+    failed_total       = usage_stats.failed_total + excluded.failed_total,
+    cancelled_total    = usage_stats.cancelled_total + excluded.cancelled_total,
+    completed_video    = usage_stats.completed_video + excluded.completed_video,
+    completed_image    = usage_stats.completed_image + excluded.completed_image,
+    render_ms_sum      = usage_stats.render_ms_sum + excluded.render_ms_sum,
+    updated_at         = now();
+end;
+$$;
 ```
+
 
 3. 在 `.env` 中添加以下环境变量：
 
