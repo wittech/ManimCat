@@ -16,7 +16,7 @@ const ENGLISH_TEMPLATES_DIR = path.join(TEMPLATES_DIR, 'en-US')
 // ============================================================================
 
 /** 角色类型 */
-export type RoleType = 'conceptDesigner' | 'codeGeneration' | 'codeRetry' | 'codeEdit'
+export type RoleType = 'problemFraming' | 'conceptDesigner' | 'codeGeneration' | 'codeRetry' | 'codeEdit'
 export type PromptLocale = 'zh-CN' | 'en-US'
 
 /** 共享模块类型 */
@@ -48,6 +48,10 @@ export interface PromptOverrides {
 // ============================================================================
 
 const ROLE_FILE_RELATIVE_PATHS: Record<RoleType, { system: string; user: string }> = {
+  problemFraming: {
+    system: path.join('roles', 'problem-framing.system.md'),
+    user: path.join('roles', 'problem-framing.md')
+  },
   conceptDesigner: {
     system: path.join('roles', 'concept-designer.system.md'),
     user: path.join('roles', 'concept-designer.md')
@@ -283,6 +287,10 @@ export function getAllDefaultTemplates(locale: PromptLocale = 'zh-CN'): {
 
   return {
     roles: {
+      problemFraming: {
+        system: readTemplate(resolveTemplateFile(ROLE_FILE_RELATIVE_PATHS.problemFraming.system, locale)),
+        user: readTemplate(resolveTemplateFile(ROLE_FILE_RELATIVE_PATHS.problemFraming.user, locale))
+      },
       conceptDesigner: {
         system: readTemplate(resolveTemplateFile(ROLE_FILE_RELATIVE_PATHS.conceptDesigner.system, locale)),
         user: readTemplate(resolveTemplateFile(ROLE_FILE_RELATIVE_PATHS.conceptDesigner.user, locale))

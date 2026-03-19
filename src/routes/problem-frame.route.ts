@@ -5,7 +5,8 @@ import { authMiddleware } from '../middlewares/auth.middleware'
 import { ValidationError } from '../utils/errors'
 import { resolveCustomApiConfigByManimcatKey } from '../utils/manimcat-routing'
 import { generateProblemFramingPlan } from '../services/problem-framing'
-import { customApiConfigSchema } from './schemas/common'
+import { customApiConfigSchema, promptOverridesSchema } from './schemas/common'
+import { referenceImagesSchema } from './helpers/reference-images'
 
 const router = express.Router()
 
@@ -28,6 +29,8 @@ const bodySchema = z.object({
   feedback: z.string().max(4000).optional(),
   locale: z.enum(['zh-CN', 'en-US']).optional(),
   currentPlan: currentPlanSchema.optional(),
+  referenceImages: referenceImagesSchema,
+  promptOverrides: promptOverridesSchema.optional(),
   customApiConfig: customApiConfigSchema.optional()
 })
 
@@ -63,6 +66,8 @@ router.post('/problem-frame', authMiddleware, asyncHandler(async (req, res) => {
     concept,
     feedback: parsed.feedback?.trim(),
     currentPlan: parsed.currentPlan,
+    referenceImages: parsed.referenceImages,
+    promptOverrides: parsed.promptOverrides,
     customApiConfig: effectiveCustomApiConfig,
     locale: parsed.locale
   })

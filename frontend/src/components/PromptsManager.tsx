@@ -47,6 +47,7 @@ export function PromptsManager({ isOpen, onClose }: Props) {
   // 获取当前标题
   const getTitle = () => {
     const roleLabels: Record<RoleType, string> = {
+      problemFraming: t('prompts.role.problemFraming'),
       conceptDesigner: t('prompts.role.conceptDesigner'),
       codeGeneration: t('prompts.role.codeGeneration'),
       codeRetry: t('prompts.role.codeRetry'),

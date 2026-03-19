@@ -448,22 +448,44 @@ export function ProblemFramingOverlay({
           </div>
 
           {confirmDiscardOpen && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/18 p-4 backdrop-blur-sm">
-              <div className="w-full max-w-md rounded-[1.6rem] border border-bg-tertiary/35 bg-[#f7f4ec] p-6">
-                <h3 className="text-xl text-text-primary">{t('problem.discardTitle')}</h3>
-                <p className="mt-3 text-sm leading-6 text-text-secondary">{t('problem.discardDescription')}</p>
+            <div className="absolute inset-0 z-50 flex items-center justify-center p-4">
+              <div
+                className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                onClick={() => setConfirmDiscardOpen(false)}
+              />
+              <div className="relative w-full max-w-sm rounded-2xl border border-bg-tertiary/30 bg-bg-secondary p-6 shadow-xl">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-medium text-text-primary">{t('problem.discardTitle')}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-text-secondary">{t('problem.discardDescription')}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDiscardOpen(false)}
+                    className="rounded-full p-1.5 text-text-secondary/70 transition-all hover:bg-bg-primary/50 hover:text-text-secondary"
+                    aria-label={t('common.close')}
+                    title={t('common.close')}
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
                 <div className="mt-6 flex items-center justify-end gap-3">
                   <button
                     type="button"
                     onClick={() => setConfirmDiscardOpen(false)}
-                    className="rounded-full bg-bg-secondary px-4 py-2 text-sm text-text-secondary"
+                    className="rounded-xl bg-bg-primary px-4 py-2 text-sm text-text-secondary transition-all hover:bg-bg-tertiary hover:text-text-primary"
                   >
                     {t('common.cancel')}
                   </button>
                   <button
                     type="button"
-                    onClick={onClose}
-                    className="rounded-full bg-accent px-4 py-2 text-sm text-bg-primary"
+                    onClick={() => {
+                      setConfirmDiscardOpen(false);
+                      onClose();
+                    }}
+                    className="rounded-xl bg-red-500 px-4 py-2 text-sm font-medium text-bg-primary transition-all hover:bg-red-600"
                   >
                     {t('common.confirm')}
                   </button>

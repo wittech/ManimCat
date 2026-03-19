@@ -139,9 +139,9 @@ export function InputForm({ concept, onConceptChange, onSubmit, loading }: Input
           <button
             type="submit"
             disabled={loading || concept.trim().length < 5}
-            className="group relative px-12 py-3.5 bg-accent hover:bg-accent-hover text-white font-medium rounded-full shadow-lg shadow-accent/25 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-xl hover:shadow-accent/35 active:scale-[0.97] overflow-hidden"
+            className="px-12 py-3.5 bg-accent/85 text-white font-medium rounded-full shadow-sm shadow-accent/5 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent/90 active:bg-accent-hover/90"
           >
-            <span className="relative z-10 flex items-center gap-2">
+            <span className="flex items-center gap-2">
               {loading ? (
                 <>
                   <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -151,15 +151,9 @@ export function InputForm({ concept, onConceptChange, onSubmit, loading }: Input
                   {t('form.submitting')}
                 </>
               ) : (
-                <>
-                  {t('form.submit.plan')}
-                  <svg className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </>
+                t('form.submit.plan')
               )}
             </span>
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" />
           </button>
         </div>
 

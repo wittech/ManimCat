@@ -40,7 +40,7 @@ export interface AIProvider {
 }
 
 /** 角色类型 */
-export type RoleType = 'conceptDesigner' | 'codeGeneration' | 'codeRetry' | 'codeEdit';
+export type RoleType = 'problemFraming' | 'conceptDesigner' | 'codeGeneration' | 'codeRetry' | 'codeEdit';
 
 /** 共享模块类型 */
 export type SharedModuleType = 'knowledge' | 'rules';
@@ -127,6 +127,8 @@ export interface ProblemFramingRequest {
   feedback?: string;
   locale?: PromptLocale;
   currentPlan?: ProblemFramingPlan;
+  referenceImages?: ReferenceImage[];
+  promptOverrides?: PromptOverrides;
   customApiConfig?: CustomApiConfig;
 }
 

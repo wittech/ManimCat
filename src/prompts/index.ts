@@ -30,6 +30,7 @@ import { getRoleSystemPrompt } from './loader'
 
 // 旧的常量导出（逐步废弃）
 export const SYSTEM_PROMPTS = {
+  problemFraming: getRoleSystemPrompt('problemFraming'),
   conceptDesigner: getRoleSystemPrompt('conceptDesigner'),
   codeGeneration: getRoleSystemPrompt('codeGeneration'),
   codeFix: getRoleSystemPrompt('codeRetry'),

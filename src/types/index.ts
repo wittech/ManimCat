@@ -65,7 +65,7 @@ export interface CustomApiConfig {
  */
 export interface PromptOverrides {
   locale?: PromptLocale
-  roles?: Partial<Record<'conceptDesigner' | 'codeGeneration' | 'codeRetry' | 'codeEdit', { system?: string; user?: string }>>
+  roles?: Partial<Record<'problemFraming' | 'conceptDesigner' | 'codeGeneration' | 'codeRetry' | 'codeEdit', { system?: string; user?: string }>>
   shared?: Partial<Record<'knowledge' | 'rules', string>>
 }
 

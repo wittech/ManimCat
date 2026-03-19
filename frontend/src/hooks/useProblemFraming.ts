@@ -4,6 +4,7 @@ import { loadSettings } from '../lib/settings';
 import { getActiveProvider, providerToCustomApiConfig } from '../lib/ai-providers';
 import type { OutputMode, ProblemFramingPlan, Quality, ReferenceImage } from '../types/api';
 import { useI18n } from '../i18n';
+import { loadPrompts } from './usePrompts';
 
 interface GenerationDraft {
   concept: string;
@@ -65,6 +66,8 @@ export function useProblemFraming(): UseProblemFramingResult {
         feedback,
         currentPlan: currentPlan || undefined,
         locale,
+        referenceImages: request.referenceImages,
+        promptOverrides: loadPrompts(locale),
         customApiConfig: customApiConfig || undefined,
       },
       abortControllerRef.current.signal

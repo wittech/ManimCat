@@ -88,6 +88,7 @@ export function Workspace({ isOpen, onClose, initialModule = 'history', onReuseP
   // 提示词编辑区标题
   const getPromptTitle = () => {
     const roleLabels: Record<RoleType, string> = {
+      problemFraming: t('prompts.role.problemFraming'),
       conceptDesigner: t('prompts.role.conceptDesigner'),
       codeGeneration: t('prompts.role.codeGeneration'),
       codeRetry: t('prompts.role.codeRetry'),

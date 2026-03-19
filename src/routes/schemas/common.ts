@@ -12,6 +12,12 @@ export const promptOverridesSchema = z.object({
   locale: z.enum(['zh-CN', 'en-US']).optional(),
   roles: z
     .object({
+      problemFraming: z
+        .object({
+          system: z.string().max(20000).optional(),
+          user: z.string().max(20000).optional()
+        })
+        .optional(),
       conceptDesigner: z
         .object({
           system: z.string().max(20000).optional(),
