@@ -356,7 +356,7 @@ If this project gave you useful ideas or helped you in some way, that is already
 
 ## Star History
 
-<iframe style="width:100%;height:auto;min-width:600px;min-height:400px;" src="https://www.star-history.com/?repos=Wing900%2FManimCat&type=date&legend=top-left" frameBorder="0"></iframe>
+[![Star History Chart](https://api.star-history.com/svg?repos=Wing900/ManimCat&type=Date)](https://www.star-history.com/#Wing900/ManimCat&Date)
 
 ## Acknowledgements
 
