@@ -99,7 +99,13 @@ export async function generateEditedManimCode(
     }
 
     const extracted = extractCodeFromResponse(content, outputMode)
-    logger.info('AI 修改完成', { concept, outputMode, mode, length: extracted.length })
+    logger.info('AI 修改完成', {
+      concept,
+      outputMode,
+      mode,
+      length: extracted.length,
+      codePreview: extracted.slice(0, 500)
+    })
     return extracted
   } catch (error) {
     if (error instanceof OpenAI.APIError) {

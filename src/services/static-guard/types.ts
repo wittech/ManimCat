@@ -1,6 +1,6 @@
 import type { OutputMode, PromptOverrides } from '../../types'
 
-export type StaticCheckTool = 'py_compile' | 'pyright'
+export type StaticCheckTool = 'py_compile' | 'mypy'
 
 export interface StaticDiagnostic {
   tool: StaticCheckTool
@@ -8,6 +8,10 @@ export interface StaticDiagnostic {
   code?: string
   line: number
   column?: number
+}
+
+export interface StaticCheckBatch {
+  diagnostics: StaticDiagnostic[]
 }
 
 export interface StaticGuardContext {
@@ -23,4 +27,8 @@ export interface StaticGuardResult {
 export interface StaticPatch {
   originalSnippet: string
   replacementSnippet: string
+}
+
+export interface StaticPatchSet {
+  patches: StaticPatch[]
 }

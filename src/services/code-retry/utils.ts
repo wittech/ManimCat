@@ -1,4 +1,4 @@
-import type { CodePatch } from './types'
+import type { CodePatch, CodePatchSet } from './types'
 
 function extractJsonObject(text: string): string {
   const normalized = text.trim()
@@ -20,15 +20,10 @@ function extractJsonObject(text: string): string {
   return text.trim()
 }
 
-export function parsePatchResponse(text: string): CodePatch {
-  let parsed: { original_snippet?: unknown; replacement_snippet?: unknown }
-  try {
-    parsed = JSON.parse(extractJsonObject(text)) as {
-      original_snippet?: unknown
-      replacement_snippet?: unknown
-    }
-  } catch (error) {
-    throw new Error(`Failed to parse code retry patch JSON: ${String(error)}`)
+function normalizePatch(candidate: unknown): CodePatch {
+  const parsed = candidate as {
+    original_snippet?: unknown
+    replacement_snippet?: unknown
   }
 
   const originalSnippet = typeof parsed.original_snippet === 'string' ? parsed.original_snippet : ''
@@ -43,6 +38,25 @@ export function parsePatchResponse(text: string): CodePatch {
   }
 
   return { originalSnippet, replacementSnippet }
+}
+
+export function parsePatchResponse(text: string): CodePatchSet {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(extractJsonObject(text))
+  } catch (error) {
+    throw new Error(`Failed to parse code retry patch JSON: ${String(error)}`)
+  }
+
+  const patchCandidates = Array.isArray((parsed as { patches?: unknown })?.patches)
+    ? (parsed as { patches: unknown[] }).patches
+    : [parsed]
+  const patches = patchCandidates.map((item) => normalizePatch(item))
+  if (patches.length === 0) {
+    throw new Error('Code retry patch response missing patches')
+  }
+
+  return { patches }
 }
 
 function getLineNumberAtIndex(text: string, index: number): number {
@@ -86,6 +100,13 @@ export function applyPatchToCode(code: string, patch: CodePatch, targetLine?: nu
       : matches[0]
 
   return `${code.slice(0, bestIndex)}${patch.replacementSnippet}${code.slice(bestIndex + patch.originalSnippet.length)}`
+}
+
+export function applyPatchSetToCode(code: string, patchSet: CodePatchSet, targetLine?: number): string {
+  return patchSet.patches.reduce((currentCode, patch, index) => {
+    const lineHint = index === 0 ? targetLine : undefined
+    return applyPatchToCode(currentCode, patch, lineHint)
+  }, code)
 }
 
 export function getErrorType(stderr: string): string {

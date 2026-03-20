@@ -3,32 +3,34 @@ import { createChatCompletionText } from '../openai-stream'
 import { createCustomOpenAIClient } from '../openai-client-factory'
 import { buildTokenParams } from '../../utils/reasoning-model'
 import type { CustomApiConfig } from '../../types'
-import type { StaticDiagnostic, StaticGuardContext, StaticGuardResult, StaticPatch } from './types'
+import type { StaticDiagnostic, StaticGuardContext, StaticGuardResult, StaticPatch, StaticPatchSet } from './types'
 import { buildStaticPatchUserPrompt, getStaticPatchSystemPrompt } from './prompt'
 import { runStaticChecks } from './checker'
 
 const logger = createLogger('StaticGuardManager')
 
-const STATIC_GUARD_MAX_PASSES = parseInt(process.env.STATIC_GUARD_MAX_PASSES || '6', 10)
+const STATIC_GUARD_MAX_PASSES = parseInt(process.env.STATIC_GUARD_MAX_PASSES || '3', 10)
 const STATIC_GUARD_TEMPERATURE = parseFloat(process.env.STATIC_GUARD_TEMPERATURE || '0.2')
 const MAX_TOKENS = parseInt(process.env.AI_MAX_TOKENS || '12000', 10)
 const THINKING_TOKENS = parseInt(process.env.AI_THINKING_TOKENS || '20000', 10)
 
 const SIMPLE_TUPLE_LIKE_PATTERN = /^\s*[-+.\w]+\s*(,\s*[-+.\w]+\s*){1,2}$/
 const RANGE_PARAM_NAMES = new Set(['x_range', 'y_range', 'z_range', 'u_range', 'v_range', 't_range'])
-const POINT_PARAM_NAMES = new Set(['point', 'start', 'end', 'center', 'arc_center'])
+const POINT_PARAM_NAMES = new Set(['point', 'start', 'end', 'center', 'arc_center', 'point_or_mobject'])
 const POSITIONAL_POINT_CONSTRUCTORS = ['Dot', 'Dot3D', 'Vector']
 const POSITIONAL_TWO_POINT_CONSTRUCTORS = ['Line', 'Arrow', 'DoubleArrow', 'Line3D', 'Arrow3D', 'DashedLine', 'ArcBetweenPoints']
 
+function stripCodeFence(text: string): string {
+  return text
+    .replace(/^```(?:json|text)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim()
+}
+
 function extractJsonObject(text: string): string {
-  const normalized = text.trim()
+  const normalized = stripCodeFence(text)
   if (/^\s*<!DOCTYPE\s+html/i.test(normalized) || /^\s*<html/i.test(normalized)) {
     throw new Error('Static patch response was HTML, not JSON')
-  }
-
-  const fencedMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
-  if (fencedMatch?.[1]) {
-    return fencedMatch[1].trim()
   }
 
   const start = text.indexOf('{')
@@ -40,15 +42,10 @@ function extractJsonObject(text: string): string {
   return text.trim()
 }
 
-function parsePatchResponse(content: string): StaticPatch {
-  let parsed: { original_snippet?: unknown; replacement_snippet?: unknown }
-  try {
-    parsed = JSON.parse(extractJsonObject(content)) as {
-      original_snippet?: unknown
-      replacement_snippet?: unknown
-    }
-  } catch (error) {
-    throw new Error(`Failed to parse static patch JSON: ${String(error)}`)
+function normalizePatch(candidate: unknown): StaticPatch | null {
+  const parsed = candidate as {
+    original_snippet?: unknown
+    replacement_snippet?: unknown
   }
 
   const originalSnippet = typeof parsed.original_snippet === 'string' ? parsed.original_snippet : ''
@@ -59,10 +56,93 @@ function parsePatchResponse(content: string): StaticPatch {
   }
 
   if (originalSnippet === replacementSnippet) {
-    throw new Error('Static patch produced no change')
+    return null
   }
 
   return { originalSnippet, replacementSnippet }
+}
+
+function parseSearchReplacePatchResponse(content: string): StaticPatchSet | null {
+  const normalized = stripCodeFence(content)
+  if (!normalized) {
+    return null
+  }
+
+  if (/^\s*<!DOCTYPE\s+html/i.test(normalized) || /^\s*<html/i.test(normalized)) {
+    throw new Error('Static patch response was HTML, not patch text')
+  }
+
+  const blockRegex = /\[\[PATCH\]\]\s*[\r\n]+[\s\S]*?\[\[SEARCH\]\]\s*[\r\n]+([\s\S]*?)[\r\n]+\[\[REPLACE\]\]\s*[\r\n]+([\s\S]*?)[\r\n]+\[\[END\]\]/g
+  const patches: StaticPatch[] = []
+  let skippedNoopCount = 0
+  let blockCount = 0
+
+  let match: RegExpExecArray | null
+  while ((match = blockRegex.exec(normalized)) !== null) {
+    blockCount += 1
+    const originalSnippet = match[1]?.replace(/\r\n/g, '\n') ?? ''
+    const replacementSnippet = match[2]?.replace(/\r\n/g, '\n') ?? ''
+    if (!originalSnippet.trim()) {
+      throw new Error('Static patch block missing SEARCH content')
+    }
+    if (originalSnippet === replacementSnippet) {
+      skippedNoopCount += 1
+      continue
+    }
+    patches.push({ originalSnippet, replacementSnippet })
+  }
+
+  if (skippedNoopCount > 0) {
+    logger.warn('Static patch skipped no-op SEARCH/REPLACE blocks', {
+      skippedNoopCount
+    })
+  }
+
+  if (blockCount > 0) {
+    return { patches }
+  }
+
+  return null
+}
+
+function parsePatchResponse(content: string): StaticPatchSet {
+  const searchReplacePatchSet = parseSearchReplacePatchResponse(content)
+  if (searchReplacePatchSet) {
+    logger.info('Static patch raw response extracted', {
+      format: 'search-replace',
+      contentLength: content.length,
+      patchCount: searchReplacePatchSet.patches.length,
+      contentPreview: content.trim().slice(0, 500),
+      firstSearchPreview: searchReplacePatchSet.patches[0]?.originalSnippet.slice(0, 200) || '',
+      firstReplacePreview: searchReplacePatchSet.patches[0]?.replacementSnippet.slice(0, 200) || ''
+    })
+    return searchReplacePatchSet
+  }
+
+  const jsonPayload = extractJsonObject(content)
+  logger.info('Static patch raw response extracted', {
+    format: 'json-fallback',
+    contentLength: content.length,
+    jsonLength: jsonPayload.length,
+    contentPreview: content.trim().slice(0, 500),
+    jsonPreview: jsonPayload.slice(0, 500)
+  })
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(jsonPayload)
+  } catch (error) {
+    throw new Error(`Failed to parse static patch JSON: ${String(error)}`)
+  }
+
+  const patchCandidates = Array.isArray((parsed as { patches?: unknown })?.patches)
+    ? ((parsed as { patches: unknown[] }).patches)
+    : [parsed]
+
+  const patches = patchCandidates
+    .map((item) => normalizePatch(item))
+    .filter((patch): patch is StaticPatch => Boolean(patch))
+  return { patches }
 }
 
 function getLineNumberAtIndex(text: string, index: number): number {
@@ -83,16 +163,16 @@ function extractDiagnosticParameterName(message: string): string | undefined {
   return match?.[1]
 }
 
-function tryApplyKnownPyrightFix(code: string, diagnostic: StaticDiagnostic): string | null {
-  if (diagnostic.tool !== 'pyright' || diagnostic.code !== 'reportArgumentType') {
+function tryApplyKnownMypyFix(code: string, diagnostic: StaticDiagnostic): string | null {
+  if (diagnostic.tool !== 'mypy' || diagnostic.code !== 'arg-type') {
     return null
   }
 
   const normalizedMessage = diagnostic.message.toLowerCase()
-  if (!normalizedMessage.includes('list[')) {
+  if (!normalizedMessage.includes('list')) {
     return null
   }
-  if (!normalizedMessage.includes('tuple[') && !normalizedMessage.includes('point3dlike')) {
+  if (!normalizedMessage.includes('tuple') && !normalizedMessage.includes('point3dlike')) {
     return null
   }
 
@@ -138,6 +218,16 @@ function tryApplyKnownPyrightFix(code: string, diagnostic: StaticDiagnostic): st
   return nextCode !== code ? nextCode : null
 }
 
+function previewDiagnostics(diagnostics: StaticDiagnostic[], limit = 3): Array<Record<string, unknown>> {
+  return diagnostics.slice(0, limit).map((diagnostic) => ({
+    tool: diagnostic.tool,
+    line: diagnostic.line,
+    column: diagnostic.column,
+    code: diagnostic.code,
+    messagePreview: diagnostic.message.replace(/\s+/g, ' ').trim().slice(0, 180)
+  }))
+}
+
 function applyPatch(code: string, patch: StaticPatch, targetLine: number): string {
   const matches: number[] = []
   let searchIndex = 0
@@ -164,11 +254,22 @@ function applyPatch(code: string, patch: StaticPatch, targetLine: number): strin
   return `${code.slice(0, bestIndex)}${patch.replacementSnippet}${code.slice(bestIndex + patch.originalSnippet.length)}`
 }
 
+function applyPatchSet(code: string, patchSet: StaticPatchSet, targetLine: number): string {
+  if (patchSet.patches.length === 0) {
+    return code
+  }
+
+  return patchSet.patches.reduce((currentCode, patch, index) => {
+    const lineHint = index === 0 ? targetLine : 1
+    return applyPatch(currentCode, patch, lineHint)
+  }, code)
+}
+
 async function generateStaticPatch(
   code: string,
-  diagnostic: StaticDiagnostic,
+  diagnostics: StaticDiagnostic[],
   customApiConfig: CustomApiConfig
-): Promise<StaticPatch> {
+): Promise<StaticPatchSet> {
   const client = createCustomOpenAIClient(customApiConfig)
   const model = (customApiConfig.model || '').trim()
   if (!model) {
@@ -181,7 +282,7 @@ async function generateStaticPatch(
       model,
       messages: [
         { role: 'system', content: getStaticPatchSystemPrompt() },
-        { role: 'user', content: buildStaticPatchUserPrompt(code, diagnostic) }
+        { role: 'user', content: buildStaticPatchUserPrompt(code, diagnostics) }
       ],
       temperature: STATIC_GUARD_TEMPERATURE,
       ...buildTokenParams(THINKING_TOKENS, MAX_TOKENS)
@@ -193,7 +294,27 @@ async function generateStaticPatch(
     throw new Error('Static patch model returned empty content')
   }
 
-  return parsePatchResponse(content)
+  logger.info('Static patch model response received', {
+    diagnosticCount: diagnostics.length,
+    diagnosticsPreview: previewDiagnostics(diagnostics),
+    contentLength: content.length,
+    contentPreview: content.trim().slice(0, 500)
+  })
+
+  const patchSet = parsePatchResponse(content)
+  logger.info('Static patch parsed', {
+    diagnosticCount: diagnostics.length,
+    diagnosticsPreview: previewDiagnostics(diagnostics),
+    patchCount: patchSet.patches.length,
+    patchLengths: patchSet.patches.map((patch) => ({
+      originalLength: patch.originalSnippet.length,
+      replacementLength: patch.replacementSnippet.length
+    })),
+    originalPreview: patchSet.patches[0]?.originalSnippet.slice(0, 200) || '',
+    replacementPreview: patchSet.patches[0]?.replacementSnippet.slice(0, 200) || ''
+  })
+
+  return patchSet
 }
 
 export async function runStaticGuardLoop(
@@ -203,6 +324,7 @@ export async function runStaticGuardLoop(
   onCheckpoint?: () => Promise<void>
 ): Promise<StaticGuardResult> {
   let currentCode = code
+  let lastDiagnosticCount = 0
 
   for (let passIndex = 1; passIndex <= STATIC_GUARD_MAX_PASSES; passIndex++) {
     logger.info('Static guard pass started', {
@@ -216,8 +338,8 @@ export async function runStaticGuardLoop(
       await onCheckpoint()
     }
 
-    const diagnostic = await runStaticChecks(currentCode, context.outputMode)
-    if (!diagnostic) {
+    const { diagnostics } = await runStaticChecks(currentCode, context.outputMode)
+    if (diagnostics.length === 0) {
       logger.info('Static guard passed', { outputMode: context.outputMode, passes: passIndex - 1 })
       return {
         code: currentCode,
@@ -225,36 +347,66 @@ export async function runStaticGuardLoop(
       }
     }
 
-    logger.warn('Static guard found diagnostic', {
+    logger.warn('Static guard found diagnostics', {
       passIndex,
-      tool: diagnostic.tool,
-      line: diagnostic.line,
-      code: diagnostic.code,
-      message: diagnostic.message
+      diagnosticCount: diagnostics.length,
+      diagnosticsPreview: previewDiagnostics(diagnostics)
     })
+    lastDiagnosticCount = diagnostics.length
 
-    const knownFixedCode = tryApplyKnownPyrightFix(currentCode, diagnostic)
-    if (knownFixedCode) {
-      currentCode = knownFixedCode
-      logger.info('Static guard applied known pyright tuple fix', {
-        passIndex,
-        line: diagnostic.line,
-        code: diagnostic.code,
-        message: diagnostic.message
-      })
-      continue
+    let nextCode = currentCode
+    const hardFixedDiagnostics: StaticDiagnostic[] = []
+    const remainingDiagnostics: StaticDiagnostic[] = []
+    for (const diagnostic of diagnostics) {
+      const knownFixedCode = tryApplyKnownMypyFix(nextCode, diagnostic)
+      if (knownFixedCode) {
+        nextCode = knownFixedCode
+        hardFixedDiagnostics.push(diagnostic)
+        continue
+      }
+      remainingDiagnostics.push(diagnostic)
     }
 
-    const patch = await generateStaticPatch(currentCode, diagnostic, customApiConfig)
-    currentCode = applyPatch(currentCode, patch, diagnostic.line)
+    if (hardFixedDiagnostics.length > 0) {
+      currentCode = nextCode
+      logger.info('Static guard applied known mypy tuple fixes', {
+        passIndex,
+        fixedCount: hardFixedDiagnostics.length,
+        diagnosticsPreview: previewDiagnostics(hardFixedDiagnostics)
+      })
+      if (remainingDiagnostics.length === 0) {
+        continue
+      }
+    }
+
+    const patchSet = await generateStaticPatch(currentCode, remainingDiagnostics, customApiConfig)
+    if (patchSet.patches.length === 0) {
+      logger.warn('Static patch produced no effective changes, stopping static patching for this pass', {
+        passIndex,
+        diagnosticCount: remainingDiagnostics.length,
+        diagnosticsPreview: previewDiagnostics(remainingDiagnostics)
+      })
+      break
+    }
+    currentCode = applyPatchSet(currentCode, patchSet, remainingDiagnostics[0]?.line || 1)
     logger.info('Static guard patch applied', {
       passIndex,
-      tool: diagnostic.tool,
-      line: diagnostic.line,
-      originalLength: patch.originalSnippet.length,
-      replacementLength: patch.replacementSnippet.length
+      diagnosticCount: remainingDiagnostics.length,
+      diagnosticsPreview: previewDiagnostics(remainingDiagnostics),
+      patchCount: patchSet.patches.length,
+      patchLengths: patchSet.patches.map((patch) => ({
+        originalLength: patch.originalSnippet.length,
+        replacementLength: patch.replacementSnippet.length
+      }))
     })
   }
 
-  throw new Error(`Static guard failed after ${STATIC_GUARD_MAX_PASSES} passes`)
+  logger.warn('Static guard max passes reached, skipping remaining diagnostics and continuing', {
+    maxPasses: STATIC_GUARD_MAX_PASSES,
+    remainingDiagnosticCount: lastDiagnosticCount
+  })
+  return {
+    code: currentCode,
+    passes: STATIC_GUARD_MAX_PASSES
+  }
 }

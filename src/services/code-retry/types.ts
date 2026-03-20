@@ -17,6 +17,10 @@ export interface CodePatch {
   replacementSnippet: string
 }
 
+export interface CodePatchSet {
+  patches: CodePatch[]
+}
+
 export interface CodeRetryOptions {
   context: CodeRetryContext
   customApiConfig?: CustomApiConfig

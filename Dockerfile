@@ -19,6 +19,9 @@ RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debia
     apt-get update && \
     apt-get install -y redis-server fonts-noto-cjk ffmpeg curl ca-certificates
 
+# 2.1 安装 Python 静态检查工具，确保容器内与本地一致走 mypy
+RUN python -m pip install --no-cache-dir mypy==1.19.1
+
 WORKDIR /app
 
 # 3. 复制 package.json

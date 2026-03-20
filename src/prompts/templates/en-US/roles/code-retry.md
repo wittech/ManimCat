@@ -11,11 +11,11 @@
 
 ### Output Requirements
 
-- Return exactly one JSON object: `{"original_snippet":"...","replacement_snippet":"..."}`
-- `original_snippet` must be an exact snippet that already exists in the current code
-- `replacement_snippet` must be the new code that should replace it
+- Return JSON only. A single patch may use `{"original_snippet":"...","replacement_snippet":"..."}`; multiple patches may use `{"patches":[{"original_snippet":"...","replacement_snippet":"..."}, ...]}`
+- Every `original_snippet` must be an exact snippet that already exists in the current code
+- Every `replacement_snippet` must be the new code that should replace its matching snippet
 - Fix only the code that is directly relevant to the current error; do not refactor unrelated parts
-- If a one-line or intra-line fix works, do not replace a larger block; if a larger block is necessary, keep it continuous and minimal
+- If a one-line or intra-line fix works, do not replace a larger block; if there are several similar local failures, return multiple minimal patches
 
 ## Behavior Layer
 
@@ -23,7 +23,7 @@
 
 1. Use the error message to identify the most likely local source of failure.
 2. Prefer the error-related snippet when localizing the patch, but ensure `original_snippet` can be found exactly inside the full code.
-3. If the failure is inside a local block, replace that continuous block rather than returning the whole file.
+3. If the failure spans several non-contiguous local regions, return multiple patches rather than the whole file.
 4. Preserve Manim structure compatibility:
 {{#if isVideo}}
    - In video mode, keep a renderable `MainScene`

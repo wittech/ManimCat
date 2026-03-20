@@ -7,7 +7,7 @@ import { buildRetryPrompt, getCodeRetrySystemPrompt } from './prompt-builder'
 import { dedupeSharedBlocksInMessages } from '../prompt-dedup'
 import { createChatCompletionText } from '../openai-stream'
 import { buildTokenParams } from '../../utils/reasoning-model'
-import { applyPatchToCode, extractTargetLine, parsePatchResponse } from './utils'
+import { applyPatchSetToCode, extractTargetLine, parsePatchResponse } from './utils'
 
 const logger = createLogger('CodeRetryCodeGen')
 
@@ -63,17 +63,29 @@ export async function retryCodeGeneration(
       throw new Error('AI returned empty content')
     }
 
-    const patch = parsePatchResponse(content)
-    const patchedCode = applyPatchToCode(currentCode, patch, extractTargetLine(errorMessage))
+    logger.info('Code retry model response received', {
+      concept: context.concept,
+      attempt,
+      mode,
+      contentLength: content.length,
+      contentPreview: content.trim().slice(0, 500)
+    })
+
+    const patchSet = parsePatchResponse(content)
+    const patchedCode = applyPatchSetToCode(currentCode, patchSet, extractTargetLine(errorMessage))
     const cleaned = cleanManimCode(patchedCode)
 
     logger.info('Code retry patch applied', {
       concept: context.concept,
       attempt,
       mode,
+      patchCount: patchSet.patches.length,
       codeLength: cleaned.code.length,
-      originalSnippetLength: patch.originalSnippet.length,
-      replacementSnippetLength: patch.replacementSnippet.length
+      patchLengths: patchSet.patches.map((patch) => ({
+        originalSnippetLength: patch.originalSnippet.length,
+        replacementSnippetLength: patch.replacementSnippet.length
+      })),
+      codePreview: cleaned.code.slice(0, 500)
     })
 
     return cleaned.code

@@ -4,7 +4,7 @@ import path from 'path'
 import { spawn } from 'child_process'
 import { createLogger } from '../../utils/logger'
 import type { OutputMode } from '../../types'
-import type { StaticDiagnostic } from './types'
+import type { StaticCheckBatch, StaticDiagnostic } from './types'
 
 const logger = createLogger('StaticGuardChecker')
 
@@ -22,22 +22,6 @@ interface CodeUnit {
 interface CodeLine {
   lineNumber: number
   text: string
-}
-
-interface PyrightJsonDiagnostic {
-  severity?: string
-  message?: string
-  rule?: string
-  range?: {
-    start?: {
-      line?: number
-      character?: number
-    }
-  }
-}
-
-interface PyrightJsonResult {
-  generalDiagnostics?: PyrightJsonDiagnostic[]
 }
 
 interface ResolvedCommand {
@@ -83,17 +67,101 @@ function runCommand(command: string, args: string[], cwd: string): Promise<Comma
   })
 }
 
-function resolvePyrightCommand(): ResolvedCommand | null {
-  const pyrightEntrypoint = path.join(process.cwd(), 'node_modules', 'pyright', 'index.js')
-  if (fs.existsSync(pyrightEntrypoint)) {
-    return {
-      command: process.execPath,
-      argsPrefix: [pyrightEntrypoint],
-      displayName: 'node pyright'
+function resolveMypyCommand(): ResolvedCommand | null {
+  const pythonExecutable = process.env.PYTHON_EXECUTABLE || 'python'
+  return {
+    command: pythonExecutable,
+    argsPrefix: ['-m', 'mypy'],
+    displayName: `${pythonExecutable} -m mypy`
+  }
+}
+
+function resolveMypyConfigPath(): string | null {
+  const explicitPath = process.env.STATIC_GUARD_MYPY_CONFIG?.trim()
+  if (explicitPath) {
+    const resolved = path.isAbsolute(explicitPath) ? explicitPath : path.join(process.cwd(), explicitPath)
+    if (fs.existsSync(resolved)) {
+      return resolved
+    }
+    logger.warn('Configured mypy config file not found, fallback to built-in mypy args', {
+      configuredPath: explicitPath,
+      resolvedPath: resolved
+    })
+  }
+
+  const candidates = ['mypy.ini', '.mypy.ini', 'pyproject.toml', 'setup.cfg']
+  for (const candidate of candidates) {
+    const resolved = path.join(process.cwd(), candidate)
+    if (fs.existsSync(resolved)) {
+      return resolved
     }
   }
 
   return null
+}
+
+function buildMypyArgs(codeFile: string): string[] {
+  const configPath = resolveMypyConfigPath()
+  const args = [
+    '--show-column-numbers',
+    '--show-error-codes',
+    '--hide-error-context',
+    '--no-color-output',
+    '--no-error-summary'
+  ]
+
+  if (configPath) {
+    args.push('--config-file', configPath)
+  } else {
+    args.push(
+      '--follow-imports',
+      'skip',
+      '--ignore-missing-imports',
+      '--allow-untyped-globals',
+      '--allow-redefinition'
+    )
+  }
+
+  args.push(codeFile)
+  return args
+}
+
+function parseMypyDiagnostics(stdout: string, stderr: string, lineOffset: number): StaticDiagnostic[] {
+  const output = [stdout, stderr].filter(Boolean).join('\n').replace(/\r\n/g, '\n')
+  if (!output.trim()) {
+    return []
+  }
+
+  const diagnostics: StaticDiagnostic[] = []
+  for (const rawLine of output.split('\n')) {
+    const line = rawLine.trim()
+    if (!line) {
+      continue
+    }
+
+    const match =
+      line.match(/^[^:]+:(\d+):(\d+):\s*error:\s*(.+?)(?:\s+\[([a-z0-9\-]+)\])?$/i) ||
+      line.match(/^[^:]+:(\d+):\s*error:\s*(.+?)(?:\s+\[([a-z0-9\-]+)\])?$/i)
+    if (!match) {
+      continue
+    }
+
+    const hasColumn = match.length >= 5
+    const lineNumber = Number.parseInt(match[1], 10)
+    const column = hasColumn ? Number.parseInt(match[2], 10) : undefined
+    const message = hasColumn ? match[3] : match[2]
+    const code = hasColumn ? match[4] : match[3]
+
+    diagnostics.push({
+      tool: 'mypy',
+      line: lineNumber + lineOffset,
+      column,
+      code,
+      message: message || 'mypy reported an error'
+    })
+  }
+
+  return diagnostics
 }
 
 function parseImageCodeUnits(code: string): CodeUnit[] {
@@ -147,32 +215,13 @@ function parsePyCompileDiagnostic(stderr: string, lineOffset: number): StaticDia
   }
 }
 
-function parsePyrightDiagnostic(stdout: string, lineOffset: number): StaticDiagnostic | null {
-  const normalized = stdout.trim()
-  if (!normalized) {
-    return null
-  }
-
-  let parsed: PyrightJsonResult
-  try {
-    parsed = JSON.parse(normalized) as PyrightJsonResult
-  } catch (error) {
-    logger.warn('Failed to parse pyright JSON output', { error: String(error), stdout: normalized.slice(0, 500) })
-    return null
-  }
-
-  const candidate = parsed.generalDiagnostics?.find((item) => item.severity === 'error')
-  if (!candidate) {
-    return null
-  }
-
-  return {
-    tool: 'pyright',
-    line: (candidate.range?.start?.line ?? 0) + 1 + lineOffset,
-    column: (candidate.range?.start?.character ?? 0) + 1,
-    code: candidate.rule,
-    message: candidate.message || 'Pyright reported an error'
-  }
+function previewDiagnostics(diagnostics: StaticDiagnostic[], limit = 3): Array<Record<string, unknown>> {
+  return diagnostics.slice(0, limit).map((diagnostic) => ({
+    line: diagnostic.line,
+    column: diagnostic.column,
+    code: diagnostic.code,
+    messagePreview: diagnostic.message.replace(/\s+/g, ' ').trim().slice(0, 180)
+  }))
 }
 
 function getCodeLine(code: string, oneBasedLineNumber: number): CodeLine | null {
@@ -192,21 +241,30 @@ function getCodeLine(code: string, oneBasedLineNumber: number): CodeLine | null 
   }
 }
 
-function shouldIgnorePyrightDiagnostic(diagnostic: StaticDiagnostic, code: string, lineOffset: number): boolean {
-  if (diagnostic.tool !== 'pyright') {
+function shouldIgnoreMypyDiagnostic(diagnostic: StaticDiagnostic, code: string, lineOffset: number): boolean {
+  if (diagnostic.tool !== 'mypy') {
     return false
   }
 
   const message = diagnostic.message.toLowerCase()
   const codeLine = getCodeLine(code, diagnostic.line - lineOffset)
   const normalizedLine = codeLine?.text.toLowerCase() || ''
+  const isCameraFrameAccess =
+    normalizedLine.includes('camera.frame') ||
+    normalizedLine.includes('camera.frame.animate') ||
+    normalizedLine.includes('camera.frame.save_state') ||
+    normalizedLine.includes('camera.frame.restore') ||
+    normalizedLine.includes('camera.frame.move_to') ||
+    normalizedLine.includes('camera.frame.set_width') ||
+    normalizedLine.includes('camera.frame.scale')
 
   if (
-    diagnostic.code === 'reportAttributeAccessIssue' &&
-    message.includes('cannot access attribute "frame" for class "camera"') &&
-    normalizedLine.includes('camera.frame')
+    diagnostic.code === 'attr-defined' &&
+    message.includes('"frame"') &&
+    message.includes('camera') &&
+    isCameraFrameAccess
   ) {
-    logger.info('Ignoring known pyright false positive for Manim camera.frame', {
+    logger.info('Ignoring known mypy false positive for Manim camera.frame', {
       line: diagnostic.line,
       column: diagnostic.column,
       code: diagnostic.code,
@@ -218,7 +276,7 @@ function shouldIgnorePyrightDiagnostic(diagnostic: StaticDiagnostic, code: strin
   return false
 }
 
-async function checkUnit(code: string, lineOffset: number): Promise<StaticDiagnostic | null> {
+async function checkUnit(code: string, lineOffset: number): Promise<StaticDiagnostic[]> {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'manim-static-'))
   const codeFile = path.join(tempDir, 'scene.py')
 
@@ -238,58 +296,59 @@ async function checkUnit(code: string, lineOffset: number): Promise<StaticDiagno
         lineOffset,
         stderrPreview: pyCompileResult.stderr.trim().slice(0, 300)
       })
-      return parsePyCompileDiagnostic(pyCompileResult.stderr, lineOffset)
+      const diagnostic = parsePyCompileDiagnostic(pyCompileResult.stderr, lineOffset)
+      return diagnostic ? [diagnostic] : []
     }
 
-    const pyrightCommand = resolvePyrightCommand()
-    if (!pyrightCommand) {
-      logger.warn('Pyright binary not found, skip pyright static checks')
-      return null
+    const mypyCommand = resolveMypyCommand()
+    if (!mypyCommand) {
+      logger.warn('mypy command not found, skip mypy static checks')
+      return []
     }
 
-    const pyrightResult = await runCommand(
-      pyrightCommand.command,
-      [...pyrightCommand.argsPrefix, '--outputjson', codeFile],
+    const mypyResult = await runCommand(
+      mypyCommand.command,
+      [...mypyCommand.argsPrefix, ...buildMypyArgs(codeFile)],
       tempDir
     )
-    const pyrightDiagnostic = parsePyrightDiagnostic(pyrightResult.stdout, lineOffset)
-    if (pyrightDiagnostic) {
-      if (shouldIgnorePyrightDiagnostic(pyrightDiagnostic, code, lineOffset)) {
-        return null
-      }
+    const mypyDiagnostics = parseMypyDiagnostics(mypyResult.stdout, mypyResult.stderr, lineOffset)
+      .filter((diagnostic) => !shouldIgnoreMypyDiagnostic(diagnostic, code, lineOffset))
 
-      logger.warn('Pyright reported diagnostic', {
+    logger.info('mypy check summarized', {
+      codeFile,
+      lineOffset,
+      errorCount: mypyDiagnostics.length
+    })
+    if (mypyDiagnostics.length > 0) {
+      logger.warn('mypy reported errors', {
         codeFile,
         lineOffset,
-        line: pyrightDiagnostic.line,
-        column: pyrightDiagnostic.column,
-        code: pyrightDiagnostic.code,
-        message: pyrightDiagnostic.message
+        errorCount: mypyDiagnostics.length,
+        errorsPreview: previewDiagnostics(mypyDiagnostics)
       })
-      return pyrightDiagnostic
+      return mypyDiagnostics
     }
 
-    if (pyrightResult.exitCode !== 0 && !pyrightDiagnostic) {
+    if (mypyResult.exitCode !== 0 && mypyDiagnostics.length === 0) {
       throw new Error(
-        pyrightResult.stderr.trim() ||
-          pyrightResult.stdout.trim() ||
-          `${pyrightCommand.displayName} check failed`
+        mypyResult.stderr.trim() ||
+          mypyResult.stdout.trim() ||
+          `${mypyCommand.displayName} check failed`
       )
     }
 
-    return null
+    return []
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true })
   }
 }
 
-export async function runStaticChecks(code: string, outputMode: OutputMode): Promise<StaticDiagnostic | null> {
+export async function runStaticChecks(code: string, outputMode: OutputMode): Promise<StaticCheckBatch> {
   const units = getCodeUnits(code, outputMode)
+  const diagnostics: StaticDiagnostic[] = []
   for (const unit of units) {
-    const diagnostic = await checkUnit(unit.code, unit.lineOffset)
-    if (diagnostic) {
-      return diagnostic
-    }
+    diagnostics.push(...(await checkUnit(unit.code, unit.lineOffset)))
   }
-  return null
+  diagnostics.sort((left, right) => left.line - right.line || (left.column || 0) - (right.column || 0))
+  return { diagnostics }
 }

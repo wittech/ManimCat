@@ -7,6 +7,7 @@ const logger = createLogger('ManimExecutorRuntime')
 
 const STDOUT_LOG_INTERVAL_MS = 5000
 const PROGRESS_LOG_INTERVAL_MS = 3000
+const STDERR_LOG_INTERVAL_MS = 10000
 const MEMORY_MONITOR_INTERVAL_MS = 2000
 const IS_PRODUCTION = process.env.NODE_ENV === 'production'
 
@@ -18,7 +19,7 @@ function parseBooleanEnv(value: string | undefined): boolean | undefined {
   return undefined
 }
 
-const renderMemoryLogEnabled = parseBooleanEnv(process.env.RENDER_MEMORY_LOG_ENABLED) ?? !IS_PRODUCTION
+const renderMemoryLogEnabled = parseBooleanEnv(process.env.RENDER_MEMORY_LOG_ENABLED) ?? false
 
 const RESOLUTION_MAP: Record<string, { width: number; height: number }> = {
   low: { width: 854, height: 480 },
@@ -43,6 +44,7 @@ export interface ExecutionState {
   peakMemoryMB: number
   lastProgressLogAt: number
   lastStdoutLogAt: number
+  lastStderrLogAt: number
 }
 
 export function normalizeExecuteOptions(options: ManimExecuteOptions): NormalizedExecuteOptions {
@@ -87,7 +89,8 @@ export function createExecutionState(): ExecutionState {
     stderr: '',
     peakMemoryMB: 0,
     lastProgressLogAt: now,
-    lastStdoutLogAt: now
+    lastStdoutLogAt: now,
+    lastStderrLogAt: now
   }
 }
 
@@ -144,10 +147,24 @@ export function handleStdoutData(state: ExecutionState, jobId: string, text: str
 
 export function handleStderrData(state: ExecutionState, jobId: string, text: string): void {
   state.stderr += text
+
+  const trimmed = text.trim()
+  if (!trimmed) {
+    return
+  }
+
+  const isProgressLike = trimmed.includes('%') || trimmed.includes('it/s') || /animation\s+\d+/i.test(trimmed)
+  const elapsedSinceLastStderrLog = Date.now() - state.lastStderrLogAt
+
+  if (isProgressLike && elapsedSinceLastStderrLog < STDERR_LOG_INTERVAL_MS) {
+    return
+  }
+
   logger.info(`Job ${jobId}: Manim stderr`, {
-    output: text.trim(),
+    output: trimmed,
     totalStderrLength: state.stderr.length
   })
+  state.lastStderrLogAt = Date.now()
 }
 
 export function elapsedSeconds(startTime: number): string {

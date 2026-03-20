@@ -85,13 +85,26 @@ export async function generateCodeFromDesignStage(params: CodeFromDesignStagePar
       throw new Error('Code generation stage returned empty content from AI response')
     }
 
-    logger.info('阶段2：代码生成成功', { concept, seed, mode, codeLength: normalizedContent.length })
+    logger.info('阶段2：代码生成成功', {
+      concept,
+      seed,
+      mode,
+      codeLength: normalizedContent.length,
+      codePreview: normalizedContent.slice(0, 500)
+    })
 
     if (outputMode === 'image') {
       return normalizedContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
     }
 
-    return extractCodeFromResponse(normalizedContent)
+    const extractedCode = extractCodeFromResponse(normalizedContent)
+    logger.info('阶段2：代码提取完成', {
+      concept,
+      seed,
+      extractedLength: extractedCode.length,
+      extractedPreview: extractedCode.slice(0, 500)
+    })
+    return extractedCode
   } catch (error) {
     if (error instanceof OpenAI.APIError) {
       logger.error('代码生成者 API 错误', {

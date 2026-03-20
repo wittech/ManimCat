@@ -12,7 +12,7 @@
 
 1. 安装 Node.js >= 18
 2. 安装 Redis 7 并保持 `localhost:6379` 可用
-3. 安装 Python 3.11、Manim Community Edition 0.19.2、LaTeX (texlive)、ffmpeg、Xvfb
+3. 安装 Python 3.11、Manim Community Edition 0.19.2、mypy、LaTeX (texlive)、ffmpeg、Xvfb
 
 ### 阶段 2: 拉取代码并配置环境变量
 
@@ -42,6 +42,7 @@ PROD_SUMMARY_LOG_ONLY=false
 
 ```bash
 npm install
+python -m pip install mypy
 cd frontend && npm install
 cd ..
 ```

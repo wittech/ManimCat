@@ -3,6 +3,6 @@ Strictly follow the prompt specifications so the patch remains compatible with M
 
 - **No Analysis**: Do not output any error analysis, fix explanations, or rationale.
 - **Patch Only**: Do not output full code, anchor protocols, or Markdown code fences.
-- **Single Output Shape**: Return exactly one JSON object in the form `{"original_snippet":"...","replacement_snippet":"..."}`.
-- **Local Replacement Only**: Prefer the smallest viable replacement. A continuous local block is allowed, but rewriting the whole file is forbidden.
+- **Single Output Shape**: Return JSON only. A single patch may use `{"original_snippet":"...","replacement_snippet":"..."}`; multiple patches may use `{"patches":[{"original_snippet":"...","replacement_snippet":"..."}, ...]}`.
+- **Local Replacement Only**: Prefer the smallest viable replacement. Multiple local patches are allowed, but rewriting the whole file is forbidden.
 - **Preserve Everything Else**: Apart from the replaced snippet, all other code should be treated as unchanged.

@@ -21,6 +21,7 @@ Output requirements:
 4. Every step must describe concrete visual objects, actions, changes, and how it connects to the previous step.
 5. Prefer “what appears first, what changes next, where it settles,” with concrete shot details and transitions, over abstract summary language.
 6. Preserve formulas, symbols, action details, and animation cues when they matter.
+6.5. Mathematical expressions are allowed, but avoid unescaped backslashes inside JSON strings. Prefer plain math text or Unicode symbols such as `x^2`, `f(x)`, `∫`, and `Δx`. If LaTeX-style backslash commands are truly necessary, they must use double backslashes.
 7. If reference images are provided, absorb the objects, structures, and composition cues from them.
 8. Do not mention JSON, schema, internal reasoning, prompts, or your own organization process.
 9. The user does not need elegant prose. The user needs an objective description that helps them picture how the video will actually unfold.

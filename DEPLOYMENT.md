@@ -15,9 +15,10 @@ This document covers three deployment paths:
 1. Node.js 18+
 2. Redis running on `localhost:6379` or equivalent
 3. Python / Manim runtime
-4. LaTeX (`texlive`)
-5. `ffmpeg`
-6. `Xvfb`
+4. `mypy`
+5. LaTeX (`texlive`)
+6. `ffmpeg`
+7. `Xvfb`
 
 ### Setup
 
@@ -47,6 +48,7 @@ Install dependencies:
 
 ```bash
 npm install
+python -m pip install mypy
 cd frontend && npm install
 cd ..
 ```

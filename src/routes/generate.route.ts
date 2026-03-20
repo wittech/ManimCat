@@ -30,6 +30,10 @@ import type { ProblemFramingPlan } from '../types'
 const router = express.Router()
 const logger = createLogger('GenerateRoute')
 
+function toPreview(value: string, maxLength = 240): string {
+  return value.replace(/\s+/g, ' ').trim().slice(0, maxLength)
+}
+
 /**
  * 处理视频生成请求的核心逻辑
  */
@@ -76,10 +80,19 @@ async function handleGenerateRequest(req: express.Request, res: express.Response
 
   logger.info('收到动画生成请求', {
     jobId,
-    concept: queuedConcept,
+    conceptPreview: toPreview(queuedConcept),
+    conceptLength: queuedConcept.length,
     outputMode,
     quality,
     hasProblemPlan: !!problemPlan,
+    problemPlanPreview: problemPlan
+      ? {
+          mode: problemPlan.mode,
+          headline: toPreview(problemPlan.headline, 80),
+          summaryPreview: toPreview(problemPlan.summary, 120),
+          stepCount: problemPlan.steps.length
+        }
+      : undefined,
     hasPreGeneratedCode: !!code,
     hasCustomApiConfig: !!effectiveCustomApiConfig,
     routeByManimcatKey: !customApiConfig && !!routedCustomApiConfig,
