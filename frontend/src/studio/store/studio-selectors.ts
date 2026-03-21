@@ -3,15 +3,28 @@ import type { StudioMessage, StudioRun, StudioTask, StudioWork, StudioWorkResult
 import type { StudioSessionState } from './studio-types'
 
 export function selectStudioMessages(state: StudioSessionState): StudioMessage[] {
-  return state.entities.messageOrder.map((id) => state.entities.messagesById[id]).filter(Boolean)
+  const sessionId = state.entities.session?.id
+  return state.entities.messageOrder
+    .map((id) => state.entities.messagesById[id])
+    .filter((message): message is StudioMessage => Boolean(message))
+    .filter((message) => (sessionId ? message.sessionId === sessionId : true))
 }
 
 export function selectStudioRuns(state: StudioSessionState): StudioRun[] {
-  return state.entities.runOrder.map((id) => state.entities.runsById[id]).filter(Boolean).reverse()
+  const sessionId = state.entities.session?.id
+  return state.entities.runOrder
+    .map((id) => state.entities.runsById[id])
+    .filter((run): run is StudioRun => Boolean(run))
+    .filter((run) => (sessionId ? run.sessionId === sessionId : true))
+    .reverse()
 }
 
 export function selectStudioWorks(state: StudioSessionState): StudioWork[] {
-  return state.entities.workOrder.map((id) => state.entities.worksById[id]).filter(Boolean)
+  const sessionId = state.entities.session?.id
+  return state.entities.workOrder
+    .map((id) => state.entities.worksById[id])
+    .filter((work): work is StudioWork => Boolean(work))
+    .filter((work) => (sessionId ? work.sessionId === sessionId : true))
 }
 
 export function selectStudioPendingPermissions(state: StudioSessionState) {
@@ -32,9 +45,11 @@ export function selectSelectedWork(state: StudioSessionState, workId: string | n
 }
 
 export function selectTasksForWork(state: StudioSessionState, workId?: string): StudioTask[] {
+  const sessionId = state.entities.session?.id
   return state.entities.taskOrder
     .map((id) => state.entities.tasksById[id])
     .filter((task): task is StudioTask => Boolean(task))
+    .filter((task) => (sessionId ? task.sessionId === sessionId : true))
     .filter((task) => (workId ? task.workId === workId : true))
     .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime())
 }
@@ -110,5 +125,5 @@ export function selectLatestAssistantText(state: StudioSessionState): string {
 
 export function selectIsBusy(state: StudioSessionState): boolean {
   const run = selectLatestRun(state)
-  return Boolean(run && (run.status === 'pending' || run.status === 'running'))
+  return state.runtime.submitting || state.runtime.replacingSession || Boolean(run && (run.status === 'pending' || run.status === 'running'))
 }

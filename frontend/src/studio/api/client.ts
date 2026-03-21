@@ -48,9 +48,16 @@ export async function studioRequest<T>(path: string, init?: RequestInit): Promis
 }
 
 async function parseStudioEnvelope<T>(response: Response): Promise<StudioApiEnvelope<T>> {
+  const raw = await response.text()
+
   try {
-    return (await response.json()) as StudioApiEnvelope<T>
+    return JSON.parse(raw) as StudioApiEnvelope<T>
   } catch {
-    throw new StudioApiRequestError(`Studio API returned invalid JSON (${response.status})`)
+    const snippet = raw.trim().slice(0, 240)
+    throw new StudioApiRequestError(
+      snippet
+        ? `Studio API returned invalid JSON (${response.status}): ${snippet}`
+        : `Studio API returned invalid JSON (${response.status})`
+    )
   }
 }

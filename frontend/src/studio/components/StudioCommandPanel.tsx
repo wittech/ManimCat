@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { StudioMessage, StudioSession } from '../protocol/studio-agent-types'
-import { formatStudioTime } from '../theme'
 
 interface StudioCommandPanelProps {
   session: StudioSession | null
   messages: StudioMessage[]
+  latestAssistantText: string
+  isBusy: boolean
   disabled: boolean
   onRun: (inputText: string) => Promise<void> | void
   onExit: () => void
@@ -13,13 +14,18 @@ interface StudioCommandPanelProps {
 export function StudioCommandPanel({
   session,
   messages,
+  latestAssistantText,
+  isBusy,
   disabled,
   onRun,
   onExit,
 }: StudioCommandPanelProps) {
   const [input, setInput] = useState('')
+  const [animatedAssistantText, setAnimatedAssistantText] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const streamRateRef = useRef(0)
+  const latestTextMetaRef = useRef<{ text: string; at: number }>({ text: '', at: 0 })
 
   const handleSubmit = async () => {
     const next = input.trim()
@@ -35,13 +41,70 @@ export function StudioCommandPanel({
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [messages])
+  }, [messages, animatedAssistantText, isBusy])
 
   useEffect(() => {
     if (!disabled) {
       inputRef.current?.focus()
     }
   }, [disabled, session?.id])
+
+  useEffect(() => {
+    if (!latestAssistantText) {
+      streamRateRef.current = 0
+      latestTextMetaRef.current = { text: '', at: 0 }
+      setAnimatedAssistantText('')
+      return
+    }
+
+    const now = Date.now()
+    const prev = latestTextMetaRef.current
+    if (prev.text && latestAssistantText.startsWith(prev.text) && latestAssistantText.length > prev.text.length) {
+      const deltaChars = latestAssistantText.length - prev.text.length
+      const deltaMs = Math.max(1, now - prev.at)
+      const charsPerSecond = (deltaChars * 1000) / deltaMs
+      streamRateRef.current = streamRateRef.current === 0
+        ? charsPerSecond
+        : streamRateRef.current * 0.68 + charsPerSecond * 0.32
+    } else if (!prev.text) {
+      streamRateRef.current = 0
+    }
+    latestTextMetaRef.current = { text: latestAssistantText, at: now }
+
+    setAnimatedAssistantText((current) => {
+      if (!latestAssistantText.startsWith(current)) {
+        return ''
+      }
+      return current
+    })
+  }, [latestAssistantText])
+
+  useEffect(() => {
+    if (!latestAssistantText) {
+      return
+    }
+
+    if (animatedAssistantText === latestAssistantText) {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      setAnimatedAssistantText((current) => {
+        if (!latestAssistantText.startsWith(current)) {
+          return latestAssistantText.slice(0, 1)
+        }
+
+        const nextLength = current.length + nextTypeStep(latestAssistantText.length - current.length)
+        return latestAssistantText.slice(0, nextLength)
+      })
+    }, nextTypeDelay(latestAssistantText, animatedAssistantText.length, streamRateRef.current))
+
+    return () => window.clearTimeout(timer)
+  }, [animatedAssistantText, latestAssistantText])
+
+  const lastMessage = messages.at(-1) ?? null
+  const streamIntoLastAssistant =
+    Boolean(lastMessage && lastMessage.role === 'assistant' && (isBusy || latestAssistantText || animatedAssistantText))
 
   return (
     <section className="studio-terminal flex h-full min-h-0 min-w-0 flex-1 flex-col bg-bg-primary/30 shadow-[inset_0_0_40px_rgba(0,0,0,0.02)]">
@@ -71,20 +134,29 @@ export function StudioCommandPanel({
 
             if (isUser) {
               return (
-                <div key={message.id} className="py-1">
-                  <span className="text-[15px] leading-7 text-text-primary">
-                    <span className="font-mono text-text-secondary/55">$ </span>
-                    {message.text}
-                  </span>
-                  <span className="ml-3 text-xs text-text-secondary/45">{formatStudioTime(message.createdAt)}</span>
+                <div key={message.id} className="animate-fade-in-soft flex justify-end py-1">
+                  <div className="max-w-[88%] rounded-[22px] rounded-br-md bg-text-primary/6 px-5 py-3 text-[15px] leading-7 text-text-primary ring-1 ring-border/10">
+                    <div className="mb-1 text-[10px] uppercase tracking-[0.24em] text-text-secondary/55">
+                      User
+                    </div>
+                    <div className="whitespace-pre-wrap break-words">{message.text}</div>
+                  </div>
                 </div>
               )
             }
 
             const parts = message.role === 'assistant' ? message.parts : []
+            const isStreamingTarget = streamIntoLastAssistant && lastMessage?.id === message.id
+            const streamedText = (animatedAssistantText || latestAssistantText).trim()
+            const textParts = parts.filter((part) => part.type === 'text' || part.type === 'reasoning')
+            const toolParts = parts.filter((part) => part.type === 'tool')
             return (
-              <div key={message.id} className="py-1">
-                {parts.map((part, i) => {
+              <div key={message.id} className={`${isStreamingTarget ? '' : 'animate-fade-in-soft '}flex justify-start py-1`}>
+                <div className="max-w-[90%] rounded-[22px] rounded-bl-md bg-bg-secondary/55 px-5 py-4 text-text-primary ring-1 ring-border/10">
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-text-secondary/55">
+                    Model
+                  </div>
+                {toolParts.map((part, i) => {
                   if (part.type === 'tool') {
                     const status = part.state.status === 'error' ? '✗' : part.state.status === 'completed' ? '✓' : '…'
                     const args = 'input' in part.state ? truncateArgs(part.state.input) : ''
@@ -102,7 +174,6 @@ export function StudioCommandPanel({
                       <div key={i} className="text-[15px] leading-7 text-text-primary whitespace-pre-wrap">
                         {text.split('\n').map((line, j) => (
                           <div key={j}>
-                            <span className="font-mono text-text-secondary/50">{'>'} </span>
                             <span>{line}</span>
                           </div>
                         ))}
@@ -113,21 +184,58 @@ export function StudioCommandPanel({
                   return null
                 })}
 
-                {parts.filter((p) => p.type === 'text' || p.type === 'reasoning').every((p) => !p.text.trim()) && (
+                {isStreamingTarget && streamedText ? (
+                  <div className="text-[15px] leading-7 text-text-primary whitespace-pre-wrap break-words">
+                    {streamedText}
+                    {(isBusy || latestAssistantText !== animatedAssistantText) && <span className="studio-type-caret">█</span>}
+                  </div>
+                ) : textParts.map((part, i) => {
+                  const text = part.text.trim()
+                  if (!text) return null
+                  return (
+                    <div key={`text-${i}`} className="text-[15px] leading-7 text-text-primary whitespace-pre-wrap">
+                      {text.split('\n').map((line, j) => (
+                        <div key={j}>
+                          <span>{line}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })}
+
+                {!isStreamingTarget && textParts.every((p) => !p.text.trim()) && (
                   <div className="text-[15px] leading-7 text-text-secondary/60">
-                    <span className="font-mono text-text-secondary/50">{'>'} </span>
                     <span>(无文本输出)</span>
                   </div>
                 )}
-
-                <span className="text-xs text-text-secondary/45">{formatStudioTime(message.createdAt)}</span>
+                </div>
               </div>
             )
           })}
 
-          {messages.length > 0 && disabled && (
-            <div className="py-1 text-text-secondary/55">
-              <span className="studio-cursor">█</span>
+          {(isBusy || latestAssistantText || animatedAssistantText) && !streamIntoLastAssistant && (
+            <div className="flex justify-start py-1">
+              <div className="max-w-[90%] rounded-[22px] rounded-bl-md bg-bg-secondary/55 px-5 py-4 text-text-primary ring-1 ring-border/10">
+                <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-text-secondary/55">
+                  Model
+                </div>
+
+                {animatedAssistantText ? (
+                  <div className="text-[15px] leading-7 text-text-primary whitespace-pre-wrap break-words">
+                    {animatedAssistantText}
+                    <span className="studio-type-caret">█</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 text-text-secondary/60">
+                    <span className="text-[15px]">正在思考</span>
+                    <span className="studio-thinking-dots" aria-hidden="true">
+                      <span />
+                      <span />
+                      <span />
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -184,4 +292,55 @@ function toolCallStatusTone(status: string) {
     default:
       return 'text-amber-600 dark:text-amber-300'
   }
+}
+
+function nextTypeDelay(target: string, currentLength: number, streamRate: number) {
+  const nextChar = target[currentLength] ?? ''
+  const backlog = target.length - currentLength
+  const targetCharsPerSecond = resolveTypingCharsPerSecond(backlog, streamRate)
+  if (!nextChar) {
+    return 18
+  }
+
+  if (nextChar === '\n') {
+    return 1000 / Math.max(targetCharsPerSecond * 1.4, 1)
+  }
+
+  if (/[，。！？；：,.!?;:]/.test(nextChar)) {
+    return Math.max(24, 1000 / Math.max(targetCharsPerSecond * 0.55, 1))
+  }
+
+  if (/\s/.test(nextChar)) {
+    return Math.max(10, 1000 / Math.max(targetCharsPerSecond * 1.25, 1))
+  }
+
+  return Math.max(12, 1000 / Math.max(targetCharsPerSecond, 1))
+}
+
+function nextTypeStep(backlog: number) {
+  if (backlog >= 28) {
+    return 3
+  }
+
+  if (backlog >= 16) {
+    return 2
+  }
+
+  return 1
+}
+
+function resolveTypingCharsPerSecond(backlog: number, streamRate: number) {
+  const minCharsPerSecond = 10
+  const maxCharsPerSecond = 26
+  const adaptiveBase = streamRate > 0 ? streamRate * 0.55 + 6 : minCharsPerSecond
+
+  if (backlog >= 10) {
+    return clamp(adaptiveBase, 12, maxCharsPerSecond)
+  }
+
+  return clamp(adaptiveBase, minCharsPerSecond, 18)
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
 }

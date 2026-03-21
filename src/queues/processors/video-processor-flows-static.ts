@@ -99,7 +99,8 @@ export async function runEditFlow(args: BaseFlowArgs): Promise<FlowResult> {
           data.customApiConfig,
           promptOverrides,
           () => storeProcessingStage(jobId, 'rendering'),
-          data.clientId
+          data.clientId,
+          data.workspaceDirectory
         )
       : await renderVideo(
           jobId,
@@ -111,7 +112,8 @@ export async function runEditFlow(args: BaseFlowArgs): Promise<FlowResult> {
           data.videoConfig,
           promptOverrides,
           () => storeProcessingStage(jobId, 'rendering'),
-          data.clientId
+          data.clientId,
+          data.workspaceDirectory
         )
   timings.render = Date.now() - renderStart
 
@@ -177,7 +179,8 @@ export async function runGenerationFlow(args: BaseFlowArgs): Promise<FlowResult>
           data.customApiConfig,
           promptOverrides,
           () => storeProcessingStage(jobId, 'rendering'),
-          data.clientId
+          data.clientId,
+          data.workspaceDirectory
         )
       : await renderVideo(
           jobId,
@@ -189,7 +192,8 @@ export async function runGenerationFlow(args: BaseFlowArgs): Promise<FlowResult>
           data.videoConfig,
           promptOverrides,
           () => storeProcessingStage(jobId, 'rendering'),
-          data.clientId
+          data.clientId,
+          data.workspaceDirectory
         )
   timings.render = Date.now() - renderStart
 

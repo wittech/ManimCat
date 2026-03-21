@@ -31,6 +31,8 @@ export async function storeResult(
     videoUrl,
     imageUrls,
     imageCount,
+    workspaceVideoPath,
+    workspaceImagePaths,
     renderPeakMemoryMB
   } = renderResult
 
@@ -45,6 +47,8 @@ export async function storeResult(
       videoUrl,
       imageUrls,
       imageCount,
+      workspaceVideoPath,
+      workspaceImagePaths,
       manimCode,
       usedAI,
       quality: quality as any,

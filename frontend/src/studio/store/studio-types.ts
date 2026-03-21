@@ -34,6 +34,8 @@ export interface StudioConnectionState {
 
 export interface StudioRuntimeState {
   activeRunId: string | null
+  submitting: boolean
+  replacingSession: boolean
   assistantTextByRunId: Record<string, string>
   replyingPermissionIds: Record<string, boolean>
   latestQuestion: {

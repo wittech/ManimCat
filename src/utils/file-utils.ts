@@ -26,15 +26,14 @@ export function findVideoFile(mediaDir: string, quality: string, frameRate?: num
   const resolution = getResolutionForQuality(quality)
   const expectedFrameRate = frameRate || 30
 
-  // 首先尝试带帧率的文件夹（如 720p30）
+  // 首先尝试兼容旧逻辑的固定命名。
   const folderWithFrameRate = `${resolution}${expectedFrameRate}`
   const expectedPath = path.join(mediaDir, 'videos', 'scene', folderWithFrameRate, 'MainScene.mp4')
   if (fs.existsSync(expectedPath)) {
     return expectedPath
   }
 
-  // 递归搜索（fallback）
-  return findFileRecursive(mediaDir, 'MainScene.mp4')
+  return findLatestFileByExtension(mediaDir, '.mp4')
 }
 
 /**
@@ -73,6 +72,35 @@ export function findFileRecursive(dir: string, filename: string): string | null 
   }
 
   return null
+}
+
+function findLatestFileByExtension(dir: string, ext: string): string | null {
+  const matches: Array<{ path: string; mtimeMs: number }> = []
+
+  try {
+    collectFilesByExtension(dir, ext, matches)
+  } catch {
+    return null
+  }
+
+  matches.sort((left, right) => right.mtimeMs - left.mtimeMs)
+  return matches[0]?.path ?? null
+}
+
+function collectFilesByExtension(dir: string, ext: string, matches: Array<{ path: string; mtimeMs: number }>): void {
+  const entries = fs.readdirSync(dir, { withFileTypes: true })
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      collectFilesByExtension(fullPath, ext, matches)
+      continue
+    }
+
+    if (entry.name.toLowerCase().endsWith(ext.toLowerCase())) {
+      const stat = fs.statSync(fullPath)
+      matches.push({ path: fullPath, mtimeMs: stat.mtimeMs })
+    }
+  }
 }
 
 function findFirstFileByExtension(dir: string, ext: string): string | null {

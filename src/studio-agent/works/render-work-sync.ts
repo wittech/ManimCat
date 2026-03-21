@@ -105,7 +105,9 @@ async function buildRenderWorkResult(
         renderPeakMemoryMB: result.data.renderPeakMemoryMB,
         timings: result.data.timings,
         manimCode: result.data.manimCode,
-        imageCount: result.data.imageCount
+        imageCount: result.data.imageCount,
+        workspaceVideoPath: result.data.workspaceVideoPath,
+        workspaceImagePaths: result.data.workspaceImagePaths
       }
     }
   }

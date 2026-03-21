@@ -16,6 +16,9 @@ export function buildStudioSubagentPrompt(input: BuildStudioSubagentPromptInput)
   const sections = [
     `<agent_prompt role="${input.agentType}">`,
     getStudioAgentSystemPrompt(input.agentType),
+    'Respond in plain text, not Markdown.',
+    'Do not use markdown bold markers such as **text**, do not use backticks or inline code formatting, and do not use fenced code blocks.',
+    'Avoid decorative formatting, heading markers, and excessive blank lines.',
     '</agent_prompt>',
     '',
     '<workflow_input>',

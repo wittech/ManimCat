@@ -25,6 +25,18 @@ import type { RenderResult } from './render-step-types'
 
 const logger = createLogger('RenderVideoStep')
 
+function writeVideoIntoWorkspace(workspaceDirectory: string | undefined, jobId: string, sourceVideoPath: string): string | undefined {
+  if (!workspaceDirectory) {
+    return undefined
+  }
+
+  const workspaceOutputDir = path.join(workspaceDirectory, 'renders', jobId)
+  fs.mkdirSync(workspaceOutputDir, { recursive: true })
+  const workspaceVideoPath = path.join(workspaceOutputDir, 'output.mp4')
+  fs.copyFileSync(sourceVideoPath, workspaceVideoPath)
+  return workspaceVideoPath
+}
+
 function resolveModel(customApiConfig?: unknown): string | undefined {
   const model = (customApiConfig as Partial<CustomApiConfig> | undefined)?.model
   const normalized = typeof model === 'string' ? model.trim() : ''
@@ -41,7 +53,8 @@ export async function renderVideo(
   videoConfig?: VideoConfig,
   promptOverrides?: PromptOverrides,
   onStageUpdate?: () => Promise<void>,
-  clientId?: string
+  clientId?: string,
+  workspaceDirectory?: string
 ): Promise<RenderResult> {
   const { manimCode, usedAI, generationType, sceneDesign } = codeResult
 
@@ -161,7 +174,7 @@ export async function renderVideo(
 
       const retryContext = createRetryContext(
         concept,
-        sceneDesign?.trim() || `¸ÅÄî: ${concept}`,
+        sceneDesign?.trim() || `æ¦‚å¿µ: ${concept}`,
         promptOverrides,
         'video'
       )
@@ -229,6 +242,8 @@ export async function renderVideo(
       await addBackgroundMusic(outputPath)
     }
 
+    const workspaceVideoPath = writeVideoIntoWorkspace(workspaceDirectory, jobId, outputPath)
+
     return {
       jobId,
       concept,
@@ -238,6 +253,7 @@ export async function renderVideo(
       generationType,
       quality,
       videoUrl: `/videos/${outputFilename}`,
+      workspaceVideoPath,
       renderPeakMemoryMB: renderResult.peakMemoryMB
     }
   } finally {

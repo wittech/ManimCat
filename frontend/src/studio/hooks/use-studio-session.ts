@@ -29,7 +29,7 @@ export function useStudioSession() {
   const [state, dispatch] = useReducer(studioEventReducer, undefined, createInitialStudioState)
   const bootstrappedRef = useRef(false)
 
-  const loadSnapshot = useCallback(async (sessionId: string) => {
+  const loadSnapshot = useCallback(async (sessionId: string, mode: 'merge' | 'replace' = 'merge') => {
     dispatch({ type: 'snapshot_loading' })
 
     try {
@@ -39,17 +39,37 @@ export function useStudioSession() {
       ])
 
       dispatch({
-        type: 'snapshot_loaded',
+        type: mode === 'replace' ? 'session_replaced' : 'snapshot_loaded',
         snapshot,
         pendingPermissions: filterPermissionsForSession(pendingPermissions, sessionId),
       })
+      return snapshot.session
     } catch (error) {
       dispatch({
         type: 'snapshot_failed',
         error: error instanceof Error ? error.message : String(error),
       })
+      throw error
     }
   }, [])
+
+  const createFreshSession = useCallback(async (mode: 'bootstrap' | 'replace' = 'bootstrap') => {
+    if (mode === 'replace') {
+      dispatch({ type: 'session_replacing' })
+    } else {
+      dispatch({ type: 'snapshot_loading' })
+    }
+
+    const session = await createStudioSession({
+      projectId: 'manimcat-studio',
+      title: 'ManimCat Studio',
+      agentType: 'builder',
+      permissionLevel: 'L2',
+    })
+
+    await loadSnapshot(session.id, mode === 'replace' ? 'replace' : 'merge')
+    return session
+  }, [loadSnapshot])
 
   useEffect(() => {
     if (bootstrappedRef.current) {
@@ -58,16 +78,8 @@ export function useStudioSession() {
     bootstrappedRef.current = true
 
     void (async () => {
-      dispatch({ type: 'snapshot_loading' })
-
       try {
-        const session = await createStudioSession({
-          projectId: 'manimcat-studio',
-          title: 'ManimCat Studio',
-          agentType: 'builder',
-          permissionLevel: 'L2',
-        })
-        await loadSnapshot(session.id)
+        await createFreshSession('bootstrap')
       } catch (error) {
         dispatch({
           type: 'snapshot_failed',
@@ -75,7 +87,7 @@ export function useStudioSession() {
         })
       }
     })()
-  }, [loadSnapshot])
+  }, [createFreshSession])
 
   const refresh = useCallback(async () => {
     const sessionId = state.entities.session?.id
@@ -106,6 +118,11 @@ export function useStudioSession() {
         message,
       })
     },
+    onRunSubmitting: () => {
+      dispatch({
+        type: 'run_submitting',
+      })
+    },
     onRunStarted: (run, pendingPermissions) => {
       dispatch({
         type: 'run_started',
@@ -123,6 +140,7 @@ export function useStudioSession() {
         pendingPermissions,
       })
     },
+    recoverSession: () => createFreshSession('replace'),
   })
 
   const { replyPermission } = useStudioPermissions({

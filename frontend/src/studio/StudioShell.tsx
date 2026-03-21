@@ -45,6 +45,8 @@ export function StudioShell({ onExit, isExiting }: StudioShellProps) {
         <StudioCommandPanel
           session={studio.session}
           messages={studio.messages}
+          latestAssistantText={studio.latestAssistantText}
+          isBusy={studio.isBusy}
           disabled={studio.isBusy || studio.state.connection.snapshotStatus !== 'ready'}
           onRun={studio.runCommand}
           onExit={onExit}

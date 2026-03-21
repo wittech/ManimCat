@@ -15,10 +15,13 @@ import type { StudioSessionState } from './studio-types'
 export type StudioStateAction =
   | { type: 'snapshot_loading' }
   | { type: 'snapshot_loaded'; snapshot: StudioSessionSnapshot; pendingPermissions: StudioPermissionRequest[] }
+  | { type: 'session_replacing' }
+  | { type: 'session_replaced'; snapshot: StudioSessionSnapshot; pendingPermissions: StudioPermissionRequest[] }
   | { type: 'snapshot_failed'; error: string }
   | { type: 'event_status'; status: StudioSessionState['connection']['eventStatus']; error?: string | null }
   | { type: 'event_received'; event: StudioExternalEvent }
   | { type: 'user_message_submitted'; message: StudioMessage }
+  | { type: 'run_submitting' }
   | { type: 'run_started'; run: StudioRun; pendingPermissions: StudioPermissionRequest[] }
   | { type: 'permission_reply_started'; requestId: string }
   | { type: 'permission_reply_finished'; requests: StudioPermissionRequest[] }
@@ -38,13 +41,56 @@ export function studioEventReducer(
         error: null,
       }
     case 'snapshot_loaded':
-      return mergeStudioSnapshot(state, action.snapshot, action.pendingPermissions)
+      {
+        const merged = mergeStudioSnapshot(state, action.snapshot, action.pendingPermissions)
+        return {
+          ...merged,
+          runtime: {
+            ...merged.runtime,
+            submitting: false,
+            replacingSession: false,
+          },
+        }
+      }
+    case 'session_replacing':
+      return {
+        ...state,
+        runtime: {
+          ...state.runtime,
+          replacingSession: true,
+          submitting: false,
+        },
+        error: null,
+      }
+    case 'session_replaced':
+      {
+        const merged = mergeStudioSnapshot(createInitialStudioState(), action.snapshot, action.pendingPermissions)
+        return {
+          ...merged,
+          connection: {
+            ...merged.connection,
+            eventStatus: state.connection.eventStatus,
+            eventError: state.connection.eventError,
+            lastEventAt: state.connection.lastEventAt,
+            lastEventType: state.connection.lastEventType,
+          },
+          runtime: {
+            ...merged.runtime,
+            replacingSession: false,
+          },
+        }
+      }
     case 'snapshot_failed':
       return {
         ...state,
         connection: {
           ...state.connection,
           snapshotStatus: 'error',
+        },
+        runtime: {
+          ...state.runtime,
+          submitting: false,
+          replacingSession: false,
         },
         error: action.error,
       }
@@ -64,6 +110,14 @@ export function studioEventReducer(
         ...state,
         entities: upsertMessages(state.entities, [action.message]),
       }
+    case 'run_submitting':
+      return {
+        ...state,
+        runtime: {
+          ...state.runtime,
+          submitting: true,
+        },
+      }
     case 'run_started':
       return {
         ...state,
@@ -74,6 +128,7 @@ export function studioEventReducer(
         runtime: {
           ...state.runtime,
           activeRunId: action.run.id,
+          submitting: false,
           assistantTextByRunId: {
             ...state.runtime.assistantTextByRunId,
             [action.run.id]: '',
@@ -146,6 +201,7 @@ function applyStudioExternalEvent(state: StudioSessionState, event: StudioExtern
         runtime: {
           ...nextBase.runtime,
           activeRunId: event.properties.runId,
+          submitting: false,
           assistantTextByRunId: {
             ...nextBase.runtime.assistantTextByRunId,
             [event.properties.runId]: event.properties.text,

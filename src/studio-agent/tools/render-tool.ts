@@ -46,7 +46,8 @@ async function executeRenderTool(
     quality,
     preGeneratedCode: input.code,
     customApiConfig: input.customApiConfig,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    workspaceDirectory: context.session.directory
   })
 
   const lifecycleMetadata = {

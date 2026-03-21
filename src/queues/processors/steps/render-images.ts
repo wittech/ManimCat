@@ -23,6 +23,22 @@ import type { RenderResult } from './render-step-types'
 
 const logger = createLogger('RenderImageStep')
 
+function writeImagesIntoWorkspace(workspaceDirectory: string | undefined, jobId: string, sourceImagePaths: string[]): string[] | undefined {
+  if (!workspaceDirectory || sourceImagePaths.length === 0) {
+    return undefined
+  }
+
+  const workspaceOutputDir = path.join(workspaceDirectory, 'renders', jobId)
+  fs.mkdirSync(workspaceOutputDir, { recursive: true })
+
+  return sourceImagePaths.map((sourcePath, index) => {
+    const suffix = path.extname(sourcePath) || '.png'
+    const workspaceImagePath = path.join(workspaceOutputDir, `image-${String(index + 1).padStart(3, '0')}${suffix}`)
+    fs.copyFileSync(sourcePath, workspaceImagePath)
+    return workspaceImagePath
+  })
+}
+
 interface ImageCodeBlock {
   index: number
   code: string
@@ -34,6 +50,7 @@ interface ImageRenderAttempt {
   stdout: string
   peakMemoryMB: number
   imageUrls: string[]
+  outputPaths: string[]
   exitCode?: number
   failedCode?: string
 }
@@ -53,14 +70,14 @@ function parseImageCodeBlocks(code: string): ImageCodeBlock[] {
   }
 
   if (blocks.length === 0) {
-    throw new Error('Î´¼ì²âµ½ÈÎºÎ YON_IMAGE Ãªµã´úÂë¿é')
+    throw new Error('æœªæ£€æµ‹åˆ°ä»»ä½• YON_IMAGE é”šç‚¹ä»£ç å—')
   }
 
   const remaining = code
     .replace(/###\s*YON_IMAGE_(\d+)_START\s*###[\s\S]*?###\s*YON_IMAGE_\1_END\s*###/g, '')
     .trim()
   if (remaining.length > 0) {
-    throw new Error('¼ì²âµ½ÃªµãÍâ´úÂë£¬Í¼Æ¬Ä£Ê½½öÔÊÐíÃªµã¿éÄÚÈÝ')
+    throw new Error('æ£€æµ‹åˆ°é”šç‚¹å¤–ä»£ç ï¼Œå›¾ç‰‡æ¨¡å¼ä»…å…è®¸é”šç‚¹å—å†…å®¹')
   }
 
   blocks.sort((a, b) => a.index - b.index)
@@ -72,7 +89,7 @@ function detectSceneName(code: string): string {
   if (match?.[1]) {
     return match[1]
   }
-  throw new Error('Í¼Æ¬´úÂë¿éÈ±ÉÙ¿ÉäÖÈ¾µÄ Scene Àà¶¨Òå')
+  throw new Error('å›¾ç‰‡ä»£ç å—ç¼ºå°‘å¯æ¸²æŸ“çš„ Scene ç±»å®šä¹‰')
 }
 
 function clearPreviousImages(outputDir: string, jobId: string): void {
@@ -148,10 +165,11 @@ async function renderImageBlocks(
       if (!renderResult.success) {
         return {
           success: false,
-          stderr: `Í¼Æ¬ ${block.index} äÖÈ¾Ê§°Ü: ${renderResult.stderr || 'Manim render failed'}`,
+          stderr: `å›¾ç‰‡ ${block.index} æ¸²æŸ“å¤±è´¥: ${renderResult.stderr || 'Manim render failed'}`,
           stdout: renderResult.stdout || '',
           peakMemoryMB,
           imageUrls: [],
+          outputPaths: [],
           exitCode: renderResult.exitCode,
           failedCode: cleaned.code
         }
@@ -161,10 +179,11 @@ async function renderImageBlocks(
       if (!imagePath) {
         return {
           success: false,
-          stderr: `Í¼Æ¬ ${block.index} äÖÈ¾Íê³Éµ«Î´ÕÒµ½ PNG Êä³ö`,
+          stderr: `å›¾ç‰‡ ${block.index} æ¸²æŸ“å®Œæˆä½†æœªæ‰¾åˆ° PNG è¾“å‡º`,
           stdout: '',
           peakMemoryMB,
           imageUrls: [],
+          outputPaths: [],
           failedCode: cleaned.code
         }
       }
@@ -182,7 +201,8 @@ async function renderImageBlocks(
       stderr: '',
       stdout: '',
       peakMemoryMB,
-      imageUrls
+      imageUrls,
+      outputPaths: blocks.map((block) => path.join(outputDir, `${jobId}-${block.index}.png`))
     }
   } catch (error) {
     return {
@@ -190,7 +210,8 @@ async function renderImageBlocks(
       stderr: error instanceof Error ? error.message : String(error),
       stdout: '',
       peakMemoryMB: 0,
-      imageUrls: []
+      imageUrls: [],
+      outputPaths: []
     }
   }
 }
@@ -205,7 +226,8 @@ export async function renderImages(
   customApiConfig?: unknown,
   promptOverrides?: PromptOverrides,
   onStageUpdate?: () => Promise<void>,
-  clientId?: string
+  clientId?: string,
+  workspaceDirectory?: string
 ): Promise<RenderResult> {
   const { manimCode, usedAI, generationType, sceneDesign } = codeResult
   const frameRate = videoConfig?.frameRate || 15
@@ -264,6 +286,7 @@ export async function renderImages(
 
     let finalCode = manimCode
     let finalImageUrls: string[] = []
+    let finalImageOutputPaths: string[] = []
     let peakMemoryMB = 0
 
     const renderWithCode = async (candidateCode: string): Promise<{
@@ -278,6 +301,7 @@ export async function renderImages(
       peakMemoryMB = Math.max(peakMemoryMB, attempt.peakMemoryMB)
       if (attempt.success) {
         finalImageUrls = attempt.imageUrls
+        finalImageOutputPaths = attempt.outputPaths
       }
       return {
         success: attempt.success,
@@ -292,7 +316,7 @@ export async function renderImages(
     if (usedAI) {
       const retryContext = createRetryContext(
         concept,
-        sceneDesign?.trim() || `¸ÅÄî: ${concept}`,
+        sceneDesign?.trim() || `æ¦‚å¿µ: ${concept}`,
         promptOverrides,
         'image'
       )
@@ -333,9 +357,12 @@ export async function renderImages(
         throw new Error(singleAttempt.stderr || 'Manim image render failed')
       }
       finalImageUrls = singleAttempt.imageUrls
+      finalImageOutputPaths = singleAttempt.outputPaths
     }
 
     await ensureJobNotCancelled(jobId)
+
+    const workspaceImagePaths = writeImagesIntoWorkspace(workspaceDirectory, jobId, finalImageOutputPaths)
 
     return {
       jobId,
@@ -347,6 +374,7 @@ export async function renderImages(
       quality,
       imageUrls: finalImageUrls,
       imageCount: finalImageUrls.length,
+      workspaceImagePaths,
       renderPeakMemoryMB: peakMemoryMB || undefined
     }
   } finally {

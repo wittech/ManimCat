@@ -8,6 +8,7 @@ import {
   sendStudioSuccess
 } from './helpers/studio-agent-responses'
 import { parseStudioCreateRunRequest } from './helpers/studio-agent-run-request'
+import { ensureDefaultStudioWorkspaceExists } from '../studio-agent/workspace/default-studio-workspace'
 
 const router = express.Router()
 
@@ -17,7 +18,7 @@ router.post('/studio-agent/sessions', authMiddleware, asyncHandler(async (req, r
     : 'default-project'
   const directory = typeof req.body.directory === 'string' && req.body.directory.trim()
     ? req.body.directory.trim()
-    : process.cwd()
+    : ensureDefaultStudioWorkspaceExists()
 
   const session = await studioRuntime.createSession({
     projectId,

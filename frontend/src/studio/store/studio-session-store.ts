@@ -21,6 +21,8 @@ export function createInitialStudioState(): StudioSessionState {
     },
     runtime: {
       activeRunId: null,
+      submitting: false,
+      replacingSession: false,
       assistantTextByRunId: {},
       replyingPermissionIds: {},
       latestQuestion: null,
@@ -34,20 +36,26 @@ export function mergeStudioSnapshot(
   snapshot: StudioSessionSnapshot,
   pendingPermissions: StudioPermissionRequest[],
 ): StudioSessionState {
+  const messagesById = mergeMessages(current.entities.messagesById, snapshot.messages)
+  const runsById = mergeRecord(current.entities.runsById, snapshot.runs)
+  const tasksById = mergeRecord(current.entities.tasksById, snapshot.tasks)
+  const worksById = mergeRecord(current.entities.worksById, snapshot.works)
+  const workResultsById = mergeRecord(current.entities.workResultsById, snapshot.workResults)
+
   return {
     ...current,
     entities: {
       session: snapshot.session,
-      messagesById: indexById(snapshot.messages),
-      messageOrder: sortByCreatedAt(snapshot.messages).map((item) => item.id),
-      runsById: indexById(snapshot.runs),
-      runOrder: sortByCreatedAt(snapshot.runs).map((item) => item.id),
-      tasksById: indexById(snapshot.tasks),
-      taskOrder: sortByUpdatedAt(snapshot.tasks).map((item) => item.id),
-      worksById: indexById(snapshot.works),
-      workOrder: sortByUpdatedAt(snapshot.works).map((item) => item.id),
-      workResultsById: indexById(snapshot.workResults),
-      workResultOrder: sortByCreatedAt(snapshot.workResults).map((item) => item.id),
+      messagesById,
+      messageOrder: sortMessageIds(messagesById, current.entities.messageOrder, snapshot.messages.map((item) => item.id)),
+      runsById,
+      runOrder: sortRecordIdsBy(runsById, compareByCreatedAt),
+      tasksById,
+      taskOrder: sortRecordIdsBy(tasksById, compareByUpdatedAt),
+      worksById,
+      workOrder: sortRecordIdsBy(worksById, compareByUpdatedAt),
+      workResultsById,
+      workResultOrder: sortRecordIdsBy(workResultsById, compareByCreatedAt),
       pendingPermissionsById: indexById(pendingPermissions),
       pendingPermissionOrder: pendingPermissions.map((item) => item.id),
     },
@@ -64,42 +72,47 @@ export function mergeStudioSnapshot(
 }
 
 export function upsertMessages(state: StudioEntityState, messages: StudioMessage[]): StudioEntityState {
+  const messagesById = mergeMessages(state.messagesById, messages)
   return {
     ...state,
-    messagesById: mergeRecord(state.messagesById, messages),
-    messageOrder: mergeOrderedIds(state.messageOrder, messages, compareByCreatedAt),
+    messagesById,
+    messageOrder: sortMessageIds(messagesById, state.messageOrder, messages.map((item) => item.id)),
   }
 }
 
 export function upsertRuns(state: StudioEntityState, runs: StudioRun[]): StudioEntityState {
+  const runsById = mergeRecord(state.runsById, runs)
   return {
     ...state,
-    runsById: mergeRecord(state.runsById, runs),
-    runOrder: mergeOrderedIds(state.runOrder, runs, compareByCreatedAt),
+    runsById,
+    runOrder: sortRecordIdsBy(runsById, compareByCreatedAt),
   }
 }
 
 export function upsertTasks(state: StudioEntityState, tasks: StudioTask[]): StudioEntityState {
+  const tasksById = mergeRecord(state.tasksById, tasks)
   return {
     ...state,
-    tasksById: mergeRecord(state.tasksById, tasks),
-    taskOrder: mergeOrderedIds(state.taskOrder, tasks, compareByUpdatedAt),
+    tasksById,
+    taskOrder: sortRecordIdsBy(tasksById, compareByUpdatedAt),
   }
 }
 
 export function upsertWorks(state: StudioEntityState, works: StudioWork[]): StudioEntityState {
+  const worksById = mergeRecord(state.worksById, works)
   return {
     ...state,
-    worksById: mergeRecord(state.worksById, works),
-    workOrder: mergeOrderedIds(state.workOrder, works, compareByUpdatedAt),
+    worksById,
+    workOrder: sortRecordIdsBy(worksById, compareByUpdatedAt),
   }
 }
 
 export function upsertWorkResults(state: StudioEntityState, results: StudioWorkResult[]): StudioEntityState {
+  const workResultsById = mergeRecord(state.workResultsById, results)
   return {
     ...state,
-    workResultsById: mergeRecord(state.workResultsById, results),
-    workResultOrder: mergeOrderedIds(state.workResultOrder, results, compareByCreatedAt),
+    workResultsById,
+    workResultOrder: sortRecordIdsBy(workResultsById, compareByCreatedAt),
   }
 }
 
@@ -143,22 +156,72 @@ function mergeRecord<T extends { id: string }>(current: Record<string, T>, items
   }, { ...current })
 }
 
-function mergeOrderedIds<T extends { id: string }>(
-  currentOrder: string[],
-  items: T[],
+function mergeMessages(
+  current: Record<string, StudioMessage>,
+  incoming: StudioMessage[],
+): Record<string, StudioMessage> {
+  const merged = mergeRecord(current, incoming)
+  const incomingServerUserMessages = incoming.filter((message): message is Extract<StudioMessage, { role: 'user' }> => {
+    return message.role === 'user' && !isOptimisticLocalMessageId(message.id)
+  })
+
+  if (incomingServerUserMessages.length === 0) {
+    return merged
+  }
+
+  for (const [messageId, message] of Object.entries(merged)) {
+    if (message.role !== 'user' || !isOptimisticLocalMessageId(messageId)) {
+      continue
+    }
+
+    const matchedServerMessage = incomingServerUserMessages.find((serverMessage) => (
+      serverMessage.text === message.text && isNearSameTimestamp(serverMessage.createdAt, message.createdAt)
+    ))
+
+    if (matchedServerMessage) {
+      merged[matchedServerMessage.id] = {
+        ...matchedServerMessage,
+        createdAt: message.createdAt,
+      }
+      delete merged[messageId]
+    }
+  }
+
+  return merged
+}
+
+function sortRecordIdsBy<T extends { id: string }>(
+  record: Record<string, T>,
   compare: (left: T, right: T) => number,
 ): string[] {
-  const all = [...new Set([...currentOrder, ...items.map((item) => item.id)])]
-  const byId = new Map(items.map((item) => [item.id, item]))
+  return Object.values(record)
+    .sort((left, right) => {
+      const result = compare(left, right)
+      if (result !== 0) {
+        return result
+      }
+      return left.id.localeCompare(right.id)
+    })
+    .map((item) => item.id)
+}
 
-  return all.sort((leftId, rightId) => {
-    const left = byId.get(leftId)
-    const right = byId.get(rightId)
-    if (!left || !right) {
-      return currentOrder.indexOf(leftId) - currentOrder.indexOf(rightId)
+function sortMessageIds(
+  record: Record<string, StudioMessage>,
+  currentOrder: string[],
+  incomingIds: string[],
+): string[] {
+  const existingOrder = currentOrder.filter((id) => Boolean(record[id]))
+  const nextOrder = [...existingOrder]
+
+  for (const id of incomingIds) {
+    if (record[id] && !nextOrder.includes(id)) {
+      nextOrder.push(id)
     }
-    return compare(left, right)
-  })
+  }
+
+  const missingIds = Object.keys(record).filter((id) => !nextOrder.includes(id))
+  nextOrder.push(...missingIds)
+  return nextOrder
 }
 
 function compareByCreatedAt<T extends { createdAt: string }>(left: T, right: T): number {
@@ -169,15 +232,15 @@ function compareByUpdatedAt<T extends { updatedAt: string }>(left: T, right: T):
   return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
 }
 
-function sortByCreatedAt<T extends { createdAt: string }>(items: T[]): T[] {
-  return [...items].sort(compareByCreatedAt)
-}
-
-function sortByUpdatedAt<T extends { updatedAt: string }>(items: T[]): T[] {
-  return [...items].sort(compareByUpdatedAt)
-}
-
 function pickLatestRunId(runs: StudioRun[]): string | null {
   return [...runs]
     .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0]?.id ?? null
+}
+
+function isOptimisticLocalMessageId(messageId: string): boolean {
+  return messageId.startsWith('local-user-')
+}
+
+function isNearSameTimestamp(left: string, right: string): boolean {
+  return Math.abs(new Date(left).getTime() - new Date(right).getTime()) < 5000
 }

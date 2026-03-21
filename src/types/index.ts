@@ -115,6 +115,8 @@ export interface VideoJobData {
   videoConfig?: VideoConfig
   /** Prompt 覆盖 */
   promptOverrides?: PromptOverrides
+  /** Studio workspace absolute directory */
+  workspaceDirectory?: string
 }
 
 /**
@@ -127,6 +129,8 @@ export interface CompletedJobResult {
     videoUrl?: string
     imageUrls?: string[]
     imageCount?: number
+    workspaceVideoPath?: string
+    workspaceImagePaths?: string[]
     manimCode: string
     usedAI: boolean
     quality: VideoQuality

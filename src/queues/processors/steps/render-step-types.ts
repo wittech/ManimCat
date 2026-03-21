@@ -11,5 +11,7 @@ export interface RenderResult {
   videoUrl?: string
   imageUrls?: string[]
   imageCount?: number
+  workspaceVideoPath?: string
+  workspaceImagePaths?: string[]
   renderPeakMemoryMB?: number
 }
