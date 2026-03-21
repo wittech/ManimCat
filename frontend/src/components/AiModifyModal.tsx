@@ -1,6 +1,7 @@
 // AI 修改对话框
 
 import { useI18n } from '../i18n';
+import { useModalTransition } from '../hooks/useModalTransition';
 
 interface AiModifyModalProps {
   isOpen: boolean;
@@ -13,24 +14,32 @@ interface AiModifyModalProps {
 
 export function AiModifyModal({ isOpen, value, loading = false, onChange, onClose, onSubmit }: AiModifyModalProps) {
   const { t } = useI18n();
+  const { shouldRender, isExiting } = useModalTransition(isOpen);
 
-  if (!isOpen) return null;
+  if (!shouldRender) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+      {/* 沉浸式背景 */}
+      <div 
+        className={`absolute inset-0 bg-bg-primary/60 backdrop-blur-md transition-opacity duration-300 ${
+          isExiting ? 'opacity-0' : 'animate-overlay-wash-in'
+        }`} 
+        onClick={onClose} 
+      />
 
-      <div className="relative w-full max-w-lg bg-bg-secondary rounded-2xl p-6 shadow-xl animate-fade-in">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <svg className="w-6 h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            <h2 className="text-lg font-medium text-text-primary">{t('aiModify.title')}</h2>
+      {/* 模态框主体 */}
+      <div className={`relative w-full max-w-lg bg-bg-secondary rounded-[2.5rem] p-10 shadow-2xl border border-border/5 ${
+        isExiting ? 'animate-fade-out-soft' : 'animate-fade-in-soft'
+      }`}>
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full bg-accent-rgb/40 animate-pulse" />
+            <h2 className="text-xl font-medium text-text-primary tracking-tight">{t('aiModify.title')}</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-text-secondary/70 hover:text-text-secondary hover:bg-bg-primary/50 rounded-full transition-all"
+            className="p-2.5 text-text-secondary/50 hover:text-text-primary hover:bg-bg-primary/50 rounded-2xl transition-all"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -38,61 +47,44 @@ export function AiModifyModal({ isOpen, value, loading = false, onChange, onClos
           </button>
         </div>
 
-        <p className="text-text-secondary text-sm mb-4">
+        <p className="text-text-secondary text-[15px] mb-8 leading-relaxed font-light">
           {t('aiModify.description')}
         </p>
 
-        <div className="relative mb-6">
-          <label
-            htmlFor="aiModifyInput"
-            className="absolute left-4 -top-2.5 px-2 bg-bg-secondary text-xs font-medium text-text-secondary"
-          >
-            {t('aiModify.label')}
-          </label>
+        <div className="relative mb-10 group">
           <textarea
             id="aiModifyInput"
             rows={5}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={t('aiModify.placeholder')}
-            className="w-full px-4 py-4 bg-bg-secondary/50 rounded-2xl text-sm text-text-primary placeholder-text-secondary/40 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:bg-bg-secondary/70 transition-all resize-none"
+            className="w-full px-6 py-6 bg-bg-secondary/50 border border-border/5 rounded-3xl text-base text-text-primary placeholder-text-secondary/30 focus:outline-none focus:border-accent-rgb/30 focus:bg-bg-secondary/80 transition-all resize-none shadow-inner"
           />
+          <label
+            htmlFor="aiModifyInput"
+            className="absolute right-6 -bottom-3 px-3 py-1 bg-bg-secondary border border-border/5 rounded-full text-[10px] uppercase tracking-widest text-text-secondary/40 group-focus-within:text-accent-rgb/60 group-focus-within:border-accent-rgb/20 transition-all"
+          >
+            {t('aiModify.label')}
+          </label>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex gap-4">
           <button
             onClick={onClose}
             disabled={loading}
-            className="flex-1 px-4 py-2.5 text-sm text-text-secondary hover:text-text-primary bg-bg-primary hover:bg-bg-tertiary rounded-xl transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 py-4 text-sm text-text-secondary hover:text-text-primary bg-bg-primary/50 hover:bg-bg-tertiary rounded-2xl transition-all active:scale-95 disabled:opacity-50"
           >
             {t('common.cancel')}
           </button>
           <button
             onClick={onSubmit}
             disabled={loading || value.trim().length === 0}
-            className="flex-1 px-4 py-2.5 text-sm text-white bg-accent hover:bg-accent-hover rounded-xl transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 py-4 text-sm text-bg-primary bg-text-primary hover:bg-accent-hover-rgb rounded-2xl transition-all active:scale-95 disabled:opacity-50 shadow-lg font-medium"
           >
             {loading ? t('aiModify.submitting') : t('aiModify.submit')}
           </button>
         </div>
       </div>
-
-      <style>{`
-        @keyframes fadeIn {
-          0% {
-            opacity: 0;
-            transform: scale(0.95);
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-        .animate-fade-in {
-          animation: fadeIn 0.2s ease-out forwards;
-        }
-      `}</style>
     </div>
   );
 }
-

@@ -6,6 +6,7 @@ import { FloatingInput } from './settings-modal/FloatingInput';
 import type { TestResult } from './settings-modal/types';
 import { TestResultBanner } from './settings-modal/test-result-banner';
 import { useI18n } from '../i18n';
+import { useModalTransition } from '../hooks/useModalTransition';
 
 interface ProviderConfigModalProps {
   isOpen: boolean;
@@ -72,6 +73,7 @@ function normalizeProviderType(type: unknown): AIProviderType {
 
 export function ProviderConfigModal({ isOpen, onClose, onSave }: ProviderConfigModalProps) {
   const { t } = useI18n();
+  const { shouldRender, isExiting } = useModalTransition(isOpen);
   const [config, setConfig] = useState<SettingsConfig>(() => loadSettings());
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [metadataText, setMetadataText] = useState('');
@@ -362,7 +364,7 @@ export function ProviderConfigModal({ isOpen, onClose, onSave }: ProviderConfigM
     }
   };
 
-  if (!isOpen) {
+  if (!shouldRender) {
     return null;
   }
 
@@ -371,25 +373,24 @@ export function ProviderConfigModal({ isOpen, onClose, onSave }: ProviderConfigM
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* 沉浸式背景：保留毛玻璃 */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={() => {
-          setDeleteDialogOpen(false);
-          setTestDialogOpen(false);
-          onClose();
-        }}
+        className={`absolute inset-0 bg-bg-primary/60 backdrop-blur-md transition-opacity duration-300 ${
+          isExiting ? 'opacity-0' : 'animate-overlay-wash-in'
+        }`}
+        onClick={onClose}
       />
-      <div className="relative w-full max-w-3xl lg:max-w-4xl max-h-[86vh] flex flex-col overflow-hidden bg-bg-secondary rounded-2xl shadow-xl border border-bg-tertiary/30">
+      
+      {/* 模态框主体：应用进出动画 */}
+      <div className={`relative w-full max-w-3xl lg:max-w-4xl max-h-[86vh] flex flex-col overflow-hidden bg-bg-secondary rounded-2xl shadow-xl border border-bg-tertiary/30 ${
+        isExiting ? 'animate-fade-out-soft' : 'animate-fade-in-soft'
+      }`}>
         <div className="h-16 bg-bg-secondary/50 border-b border-bg-tertiary/30 flex items-center justify-between px-6">
           <div className="flex items-center gap-3">
             <span className="text-base text-text-primary font-medium">{t('providers.title')}</span>
           </div>
           <button
-            onClick={() => {
-              setDeleteDialogOpen(false);
-              setTestDialogOpen(false);
-              onClose();
-            }}
+            onClick={onClose}
             className="p-2 text-text-secondary/70 hover:text-text-primary hover:bg-bg-tertiary/50 rounded-lg transition-colors"
             title={t('common.close')}
             aria-label={t('common.close')}
@@ -404,10 +405,12 @@ export function ProviderConfigModal({ isOpen, onClose, onSave }: ProviderConfigM
           <div className="flex items-center gap-2 overflow-x-auto pb-1">
             {providers.map((provider) => {
               const isActive = provider.id === activeProviderId;
+              const isSelected = provider.id === selectedProviderId;
               const base =
-                'px-4 py-2 rounded-xl text-sm whitespace-nowrap transition-colors cursor-pointer flex items-center gap-2 border';
-              const cls = isActive
-                ? `${base} bg-accent/75 text-bg-primary border-accent/25 shadow-sm shadow-black/10 hover:bg-accent/85 dark:bg-bg-tertiary/70 dark:text-text-primary dark:border-bg-tertiary/50 dark:hover:bg-bg-tertiary/85 dark:shadow-black/25`
+                'px-4 py-2 rounded-xl text-sm whitespace-nowrap transition-all cursor-pointer flex items-center gap-2 border';
+              
+              const cls = isSelected
+                ? `${base} bg-accent text-bg-primary border-transparent shadow-md shadow-accent/10`
                 : `${base} bg-bg-secondary/20 text-text-secondary hover:text-text-primary hover:bg-bg-secondary/35 border-bg-tertiary/20`;
 
               return (
@@ -548,11 +551,7 @@ export function ProviderConfigModal({ isOpen, onClose, onSave }: ProviderConfigM
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={() => {
-                setDeleteDialogOpen(false);
-                setTestDialogOpen(false);
-                onClose();
-              }}
+              onClick={onClose}
               className="px-6 py-3 text-sm font-medium text-text-secondary hover:text-text-primary bg-bg-secondary/40 hover:bg-bg-secondary/60 rounded-2xl transition-all focus:outline-none focus:ring-2 focus:ring-accent/20"
             >
               {t('common.close')}
@@ -561,8 +560,8 @@ export function ProviderConfigModal({ isOpen, onClose, onSave }: ProviderConfigM
         </div>
       </div>
 
-      {deleteDialogOpen ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      {deleteDialogOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-fade-in">
           <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteDialogOpen(false)} />
           <div className="relative bg-bg-secondary rounded-2xl p-6 max-w-sm w-full shadow-xl border border-bg-tertiary/30">
             <h3 className="text-base font-medium text-text-primary">{t('providers.delete')}</h3>
@@ -571,7 +570,7 @@ export function ProviderConfigModal({ isOpen, onClose, onSave }: ProviderConfigM
               <button
                 type="button"
                 onClick={() => setDeleteDialogOpen(false)}
-                className="flex-1 px-4 py-2.5 text-sm text-text-secondary hover:text-text-primary bg-bg-secondary/40 hover:bg-bg-secondary/60 rounded-xl transition-all"
+                className="flex-1 px-4 py-2.5 text-sm text-text-secondary hover:text-text-primary bg-bg-primary rounded-xl transition-all"
               >
                 {t('common.cancel')}
               </button>
@@ -585,10 +584,10 @@ export function ProviderConfigModal({ isOpen, onClose, onSave }: ProviderConfigM
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {testDialogOpen ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      {testDialogOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-fade-in">
           <div className="absolute inset-0 bg-black/40" onClick={() => setTestDialogOpen(false)} />
           <div className="relative bg-bg-secondary rounded-2xl p-6 max-w-sm w-full shadow-xl border border-bg-tertiary/30">
             <div className="flex items-center justify-between">
@@ -639,7 +638,7 @@ export function ProviderConfigModal({ isOpen, onClose, onSave }: ProviderConfigM
             </div>
           </div>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

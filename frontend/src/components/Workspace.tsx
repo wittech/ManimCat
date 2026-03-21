@@ -2,13 +2,14 @@
  * 工作空间 - 合并 历史记录 / 提示词管理 / 用量统计
  */
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { HistoryPanel } from './HistoryPanel';
 import { usePrompts } from '../hooks/usePrompts';
 import { PromptSidebar } from './PromptSidebar';
 import { UsageDashboardContent } from './UsageDashboard';
 import type { RoleType, SharedModuleType } from '../types/api';
 import { useI18n } from '../i18n';
+import { useModalTransition } from '../hooks/useModalTransition';
 
 type WorkspaceModule = 'history' | 'prompts' | 'usage';
 
@@ -21,8 +22,7 @@ interface WorkspaceProps {
 
 export function Workspace({ isOpen, onClose, initialModule = 'history', onReusePrompt }: WorkspaceProps) {
   const { t } = useI18n();
-  const [shouldRender, setShouldRender] = useState(isOpen);
-  const [isVisible, setIsVisible] = useState(isOpen);
+  const { shouldRender, isExiting } = useModalTransition(isOpen, 400);
   const [activeModule, setActiveModule] = useState<WorkspaceModule>(initialModule);
 
   const {
@@ -34,18 +34,6 @@ export function Workspace({ isOpen, onClose, initialModule = 'history', onReuseP
     restoreCurrent,
     hasOverride,
   } = usePrompts();
-
-  useEffect(() => {
-    if (isOpen) {
-      setShouldRender(true);
-      setActiveModule(initialModule);
-      setTimeout(() => setIsVisible(true), 50);
-    } else {
-      setIsVisible(false);
-      const timeout = setTimeout(() => setShouldRender(false), 300);
-      return () => clearTimeout(timeout);
-    }
-  }, [isOpen, initialModule]);
 
   if (!shouldRender) return null;
 
@@ -85,7 +73,6 @@ export function Workspace({ isOpen, onClose, initialModule = 'history', onReuseP
     },
   ];
 
-  // 提示词编辑区标题
   const getPromptTitle = () => {
     const roleLabels: Record<RoleType, string> = {
       problemFraming: t('prompts.role.problemFraming'),
@@ -124,39 +111,41 @@ export function Workspace({ isOpen, onClose, initialModule = 'history', onReuseP
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex flex-col bg-bg-primary transition-all duration-300 ${
-        isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+      className={`fixed inset-0 z-[120] flex flex-col bg-bg-primary transition-all duration-500 ${
+        isExiting ? 'opacity-0 scale-[1.02] blur-xl' : 'opacity-100 scale-100 blur-0 animate-studio-entrance'
       }`}
     >
       {/* 顶栏 */}
-      <div className="h-14 bg-bg-secondary/50 border-b border-bg-tertiary/30 flex items-center justify-between px-4">
-        <div className="flex items-center gap-3">
+      <div className="h-16 bg-bg-secondary/50 border-b border-border/5 flex items-center justify-between px-6">
+        <div className="flex items-center gap-4">
           <button
             onClick={onClose}
-            className="p-2 text-text-secondary/70 hover:text-text-primary hover:bg-bg-tertiary/50 rounded-lg transition-colors"
+            className="p-2.5 text-text-secondary/50 hover:text-text-primary hover:bg-bg-primary/50 rounded-2xl transition-all"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <span className="text-sm font-medium text-text-primary">{t('workspace.title')}</span>
+          <div className="flex items-center gap-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-accent-rgb/40" />
+            <span className="text-lg font-medium text-text-primary/90 tracking-tight">{t('workspace.title')}</span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* 提示词模块：修改状态 + 恢复按钮 */}
+        <div className="flex items-center gap-6">
           {activeModule === 'prompts' && isModified && (
-            <>
-              <span className="text-xs text-accent/70">{t('prompts.modified')}</span>
+            <div className="flex items-center gap-3 animate-fade-in">
+              <span className="text-[10px] uppercase tracking-widest text-accent-rgb/60">{t('prompts.modified')}</span>
               <button
                 onClick={restoreCurrent}
-                className="px-3 py-1.5 text-xs text-text-secondary/70 hover:text-text-primary hover:bg-bg-tertiary/50 rounded-lg transition-colors"
+                className="px-4 py-1.5 text-[10px] uppercase tracking-widest bg-accent-rgb/5 text-accent-rgb/70 hover:bg-accent-rgb/10 hover:text-accent-rgb rounded-full transition-all"
               >
                 {t('prompts.restore')}
               </button>
-            </>
+            </div>
           )}
-          <div className="text-[10px] text-text-secondary/30 uppercase tracking-widest">
-            Workspace / <span className="text-text-secondary/60">{breadcrumbMap[activeModule]}</span>
+          <div className="text-[10px] text-text-secondary/30 uppercase tracking-[0.25em] font-light">
+            Workspace / <span className="text-text-secondary/60 font-medium">{breadcrumbMap[activeModule]}</span>
           </div>
         </div>
       </div>
@@ -164,15 +153,15 @@ export function Workspace({ isOpen, onClose, initialModule = 'history', onReuseP
       {/* 核心交互区 */}
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧 Rail 导航 */}
-        <aside className="w-14 bg-bg-secondary/20 border-r border-bg-tertiary/30 flex flex-col items-center py-4 gap-2">
+        <aside className="w-20 bg-bg-secondary/20 border-r border-border/5 flex flex-col items-center py-8 gap-4">
           {railItems.map(item => (
             <button
               key={item.id}
               onClick={() => setActiveModule(item.id)}
-              className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all ${
+              className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all duration-300 ${
                 activeModule === item.id
-                  ? 'bg-accent/15 text-accent'
-                  : 'text-text-secondary/50 hover:text-text-secondary hover:bg-bg-tertiary/30'
+                  ? 'bg-bg-tertiary text-text-primary shadow-sm'
+                  : 'text-text-secondary/40 hover:text-text-primary hover:bg-bg-secondary/50'
               }`}
               title={item.label}
             >
@@ -183,47 +172,47 @@ export function Workspace({ isOpen, onClose, initialModule = 'history', onReuseP
 
         {/* 模块展示区 */}
         <div className="flex-1 flex overflow-hidden">
-          {/* History */}
           {activeModule === 'history' && (
-            <main className="flex-1 p-8 overflow-y-auto bg-bg-primary">
+            <main className="flex-1 p-10 overflow-y-auto bg-bg-primary/30 animate-fade-in">
               <HistoryPanel isActive={activeModule === 'history'} onReusePrompt={onReusePrompt} />
             </main>
           )}
 
-          {/* Prompts */}
           {activeModule === 'prompts' && (
-            <>
+            <div className="flex-1 flex overflow-hidden animate-fade-in">
               <PromptSidebar selection={selection} onSelect={setSelection} />
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="px-6 py-4 border-b border-bg-tertiary/30">
-                  <h2 className="text-base font-medium text-text-primary">{getPromptTitle()}</h2>
-                  <p className="text-xs text-text-secondary/60 mt-1">{getPromptDescription()}</p>
+                <div className="px-10 py-8 border-b border-border/5">
+                  <h2 className="text-xl font-medium text-text-primary/90 tracking-tight">{getPromptTitle()}</h2>
+                  <p className="text-sm text-text-secondary/50 mt-2 font-light">{getPromptDescription()}</p>
                 </div>
-                <div className="flex-1 p-4 overflow-hidden">
+                <div className="flex-1 p-8 overflow-hidden">
                   {promptsLoading ? (
-                    <div className="h-full flex items-center justify-center text-text-secondary/50 text-sm">
+                    <div className="h-full flex items-center justify-center text-text-secondary/30 text-sm tracking-widest uppercase">
                       {t('common.loading')}
                     </div>
                   ) : (
                     <textarea
                       value={promptContent}
                       onChange={e => setCurrentContent(e.target.value)}
-                      className="w-full h-full px-4 py-3 bg-bg-secondary/30 border border-bg-tertiary/30 rounded-lg text-sm text-text-primary font-mono leading-relaxed resize-none focus:outline-none focus:border-accent/30 focus:ring-1 focus:ring-accent/20 transition-colors"
+                      className="w-full h-full px-8 py-8 bg-bg-secondary/30 border border-border/5 rounded-[2rem] text-[15px] text-text-primary/80 font-mono leading-relaxed resize-none focus:outline-none focus:border-accent-rgb/20 focus:bg-bg-secondary/50 transition-all shadow-inner scrollbar-hide"
                       placeholder={t('prompts.placeholder')}
                     />
                   )}
                 </div>
-                <div className="px-6 py-3 border-t border-bg-tertiary/30 flex items-center justify-between text-xs text-text-secondary/50">
+                <div className="px-10 py-5 border-t border-border/5 flex items-center justify-between text-[10px] uppercase tracking-widest text-text-secondary/30 font-light">
                   <span>{t('prompts.characters', { count: promptContent.length })}</span>
-                  <span>{t('prompts.autosave')}</span>
+                  <span className="flex items-center gap-2">
+                    <div className="w-1 h-1 rounded-full bg-green-500/40 animate-pulse" />
+                    {t('prompts.autosave')}
+                  </span>
                 </div>
               </div>
-            </>
+            </div>
           )}
 
-          {/* Usage */}
           {activeModule === 'usage' && (
-            <main className="flex-1 overflow-y-auto bg-bg-primary">
+            <main className="flex-1 overflow-y-auto bg-bg-primary/30 animate-fade-in">
               <UsageDashboardContent isActive={activeModule === 'usage'} />
             </main>
           )}
