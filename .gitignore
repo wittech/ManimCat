@@ -1,4 +1,4 @@
-﻿# Dependencies
+# Dependencies
 node_modules/
 .cursor/
 
@@ -62,8 +62,11 @@ tmp/
 
 public/images/*
 public/images/.gitkeep
+public/readme-images/*.png
+!public/readme-images/.gitkeep
 
 # Studio / test build artifacts
 dist-tests/
 public/assets/
 public/index.html
+

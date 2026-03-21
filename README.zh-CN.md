@@ -79,11 +79,20 @@
 
 ### 界面
 
-![image-20260221125910244](https://raw.githubusercontent.com/Wing900/ManimCat/main/public/readme-images/ui-1.png)
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/5abd29f6-adcb-4047-b85c-aba1fa0808a5" width="49%" alt="ManimCat 桌面界面截图 1" />
+  <img src="https://github.com/user-attachments/assets/d18d0f27-15b4-4c59-8a4b-a8b8fb553020" width="49%" alt="ManimCat 桌面界面截图 2" />
+</div>
 
-![image-20260221130027231](https://raw.githubusercontent.com/Wing900/ManimCat/main/public/readme-images/ui-2.png)
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/2c70886f-c381-4995-8ca4-2d0db1974829" width="49%" alt="ManimCat 桌面界面截图 3" />
+  <img src="https://github.com/user-attachments/assets/ce3718e8-4bc4-44db-87fb-3fb486eed144" width="49%" alt="ManimCat 桌面界面截图 4" />
+</div>
 
-![image-20260221130809525](https://raw.githubusercontent.com/Wing900/ManimCat/main/public/readme-images/ui-3.png)
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/b831caaf-10fe-4238-8998-d574f42af524" width="49%" alt="ManimCat 桌面界面截图 5" />
+  <img src="https://github.com/user-attachments/assets/30583571-f038-4c7b-9362-c988a896d374" width="49%" alt="ManimCat 桌面界面截图 6" />
+</div>
 
 ## 样例
 
@@ -279,6 +288,8 @@ flowchart LR
 - [anomalyco/opencode](https://github.com/anomalyco/opencode)
 - [Linux.do](https://linux.do)
 - [阿里云百炼](https://bailian.console.aliyun.com)
+
+
 
 
 

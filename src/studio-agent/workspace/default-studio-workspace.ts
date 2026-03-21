@@ -1,10 +1,9 @@
 import fs from 'node:fs'
-import path from 'node:path'
 
-export const DEFAULT_STUDIO_WORKSPACE_DIRNAME = '.studio-workspace'
+export const DEFAULT_STUDIO_WORKSPACE_DIRNAME = '.'
 
 export function getDefaultStudioWorkspacePath(): string {
-  return path.join(process.cwd(), DEFAULT_STUDIO_WORKSPACE_DIRNAME)
+  return process.cwd()
 }
 
 export function ensureDefaultStudioWorkspaceExists(): string {

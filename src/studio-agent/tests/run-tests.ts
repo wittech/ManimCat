@@ -1,8 +1,10 @@
+import { getDefaultStudioWorkspacePath } from '../workspace/default-studio-workspace'
 import path from 'node:path'
 import os from 'node:os'
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import assert from 'node:assert/strict'
 import {
+  buildStudioAgentSystemPrompt,
   buildStudioSubagentPrompt,
   buildReviewerStructuredReport,
   createStudioSession,
@@ -121,6 +123,28 @@ async function main() {
     assert.equal(isStudioPermissionDecision('always'), true)
     assert.equal(isStudioPermissionDecision('reject'), true)
     assert.equal(isStudioPermissionDecision('maybe'), false)
+  })
+  await run('default studio workspace uses current working directory', async () => {
+    assert.equal(getDefaultStudioWorkspacePath(), process.cwd())
+  })
+
+  await run('builder prompt requires code, checks, and confirmation before render', async () => {
+    const session = createStudioSession({
+      projectId: 'project-1',
+      agentType: 'builder',
+      title: 'Prompt Session',
+      directory: await createWorkspace(),
+      permissionLevel: 'L4',
+      permissionRules: defaultRulesForLevel('L4')
+    })
+
+    const prompt = buildStudioAgentSystemPrompt({
+      session
+    })
+
+    assert.match(prompt, /Workspace root:/)
+    assert.match(prompt, /Do not call render until the target code has been written or updated in the workspace and checked with static-check/)
+    assert.match(prompt, /use the question tool to ask for confirmation first/)
   })
   await run('registry filters tools by agent', async () => {
     const { registry } = createTestRuntime()
@@ -649,6 +673,8 @@ main()
     console.error(error)
     process.exit(1)
   })
+
+
 
 
 

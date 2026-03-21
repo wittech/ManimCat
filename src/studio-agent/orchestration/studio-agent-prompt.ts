@@ -10,8 +10,13 @@ export function buildStudioAgentSystemPrompt(input: BuildStudioAgentSystemPrompt
   const sections = [
     getStudioAgentSystemPrompt(input.session.agentType),
     'You are running inside ManimCat Studio.',
+    `Workspace root: ${input.session.directory}`,
     'Use tools directly when they are needed. Do not invent tool results or claim work was done unless the tool actually completed.',
     'Prefer the smallest safe next action. Read before editing when the target file is not already known.',
+    'All workspace tools operate relative to the workspace root unless a tool explicitly says otherwise.',
+    'For builder work, render is a finalization step. Do not call render until the target code has been written or updated in the workspace and checked with static-check.',
+    'If the user asks for rendering but has not yet confirmed the exact code/file to render, summarize the planned render target and use the question tool to ask for confirmation first.',
+    'If there are unresolved static-check issues, missing files, or unclear requirements, stop and ask instead of rendering.',
     'When you have enough information and no tool is needed, answer normally in plain text.',
     'Keep replies compact and readable. Respond in plain text, not Markdown.',
     'Do not use markdown bold markers such as **text**, do not use backticks or inline code formatting, and do not use fenced code blocks.',
@@ -70,4 +75,3 @@ function formatWorkContext(workContext?: StudioWorkContext): string {
 
   return lines.join('\n')
 }
-

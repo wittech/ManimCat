@@ -203,9 +203,9 @@ export function LoadingSpinner({ stage, jobId, onCancel, onOpenGame }: LoadingSp
       </div>
 
       {confirmCancelOpen && onCancel ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmCancelOpen(false)} />
-          <div className="relative w-full max-w-sm bg-bg-secondary rounded-2xl p-6 shadow-xl border border-bg-tertiary/30">
+        <div className="fixed inset-0 z-50 flex items-center justify-center pb-[10vh] p-4">
+          <div className="absolute inset-0 bg-bg-primary/60 backdrop-blur-md animate-overlay-wash-in" onClick={() => setConfirmCancelOpen(false)} />
+          <div className="relative w-full max-w-md bg-bg-secondary rounded-2xl p-8 shadow-xl border border-bg-tertiary/30">
              <h2 className="text-base font-medium text-text-primary">中止任务？</h2>
              <p className="text-sm text-text-secondary mt-2">猫猫已经跑了一半了，确定要停下来吗？</p>
              <div className="flex items-center justify-end gap-3 mt-6">

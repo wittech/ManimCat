@@ -4,7 +4,8 @@ import {
   getPendingStudioPermissions,
   getStudioSessionSnapshot,
 } from '../api/studio-agent-api'
-import type { StudioPermissionRequest } from '../protocol/studio-agent-types'
+import type { StudioPermissionRequest, StudioTask } from '../protocol/studio-agent-types'
+import type { StudioSessionState } from '../store/studio-types'
 import { useStudioEvents } from './use-studio-events'
 import { useStudioPermissions } from './use-studio-permissions'
 import { useStudioRun } from './use-studio-run'
@@ -28,9 +29,16 @@ import {
 export function useStudioSession() {
   const [state, dispatch] = useReducer(studioEventReducer, undefined, createInitialStudioState)
   const bootstrappedRef = useRef(false)
+  const refreshInFlightRef = useRef(false)
 
-  const loadSnapshot = useCallback(async (sessionId: string, mode: 'merge' | 'replace' = 'merge') => {
-    dispatch({ type: 'snapshot_loading' })
+  const loadSnapshot = useCallback(async (
+    sessionId: string,
+    mode: 'merge' | 'replace' = 'merge',
+    options?: { silent?: boolean; ignoreErrors?: boolean },
+  ) => {
+    if (!options?.silent) {
+      dispatch({ type: 'snapshot_loading' })
+    }
 
     try {
       const [snapshot, pendingPermissions] = await Promise.all([
@@ -45,6 +53,10 @@ export function useStudioSession() {
       })
       return snapshot.session
     } catch (error) {
+      if (options?.ignoreErrors) {
+        return null
+      }
+
       dispatch({
         type: 'snapshot_failed',
         error: error instanceof Error ? error.message : String(error),
@@ -95,6 +107,36 @@ export function useStudioSession() {
       await loadSnapshot(sessionId)
     }
   }, [loadSnapshot, state.entities.session?.id])
+
+  useEffect(() => {
+    const sessionId = state.entities.session?.id
+    if (!sessionId || !hasActiveRenderTask(state)) {
+      return
+    }
+
+    const refreshRenderState = async () => {
+      if (refreshInFlightRef.current) {
+        return
+      }
+
+      refreshInFlightRef.current = true
+      try {
+        await loadSnapshot(sessionId, 'merge', {
+          silent: true,
+          ignoreErrors: true,
+        })
+      } finally {
+        refreshInFlightRef.current = false
+      }
+    }
+
+    void refreshRenderState()
+    const timer = window.setInterval(() => {
+      void refreshRenderState()
+    }, 4000)
+
+    return () => window.clearInterval(timer)
+  }, [loadSnapshot, state])
 
   useStudioEvents({
     sessionId: state.entities.session?.id ?? null,
@@ -201,3 +243,20 @@ function filterPermissionsForSession(requests: StudioPermissionRequest[], sessio
   }
   return requests.filter((request) => request.sessionID === sessionId)
 }
+
+function hasActiveRenderTask(state: StudioSessionState): boolean {
+  const sessionId = state.entities.session?.id
+  if (!sessionId) {
+    return false
+  }
+
+  return state.entities.taskOrder
+    .map((id) => state.entities.tasksById[id])
+    .filter((task): task is StudioTask => Boolean(task))
+    .some((task) => (
+      task.sessionId === sessionId
+      && task.type === 'render'
+      && (task.status === 'queued' || task.status === 'running' || task.status === 'pending_confirmation')
+    ))
+}
+
