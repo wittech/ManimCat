@@ -14,6 +14,7 @@ import {
 } from '../concept-designer-utils'
 import { createChatCompletionText } from '../openai-stream'
 import { buildTokenParams } from '../../utils/reasoning-model'
+import { JobCancelledError } from '../../utils/errors'
 
 const logger = createLogger('SceneDesignStage')
 
@@ -151,6 +152,14 @@ export async function generateSceneDesignStage(params: SceneDesignStageParams): 
 
     return cleanedDesign.text
   } catch (error) {
+    if (error instanceof JobCancelledError) {
+      logger.warn('场景设计阶段已取消', {
+        concept,
+        reason: error.details
+      })
+      throw error
+    }
+
     if (error instanceof OpenAI.APIError) {
       logger.error('设计者 API 错误', {
         concept,

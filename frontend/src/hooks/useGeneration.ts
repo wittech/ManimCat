@@ -163,8 +163,6 @@ export function useGeneration(): UseGenerationReturn {
         }
 
         console.error('轮询错误:', err);
-        await requestCancel(id);
-
         if (
           err instanceof Error &&
           (
@@ -182,6 +180,14 @@ export function useGeneration(): UseGenerationReturn {
           setError(t('generation.jobExpired'));
           return;
         }
+
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        setStatus('error');
+        setError(err instanceof Error ? localizeApiMessage(err.message) : t('api.jobStatusFailed'));
+        return;
       }
     }, POLL_INTERVAL);
   }, [requestCancel, t, updateStage]);
