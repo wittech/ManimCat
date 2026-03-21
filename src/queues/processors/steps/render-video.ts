@@ -185,7 +185,8 @@ export async function renderVideo(
         manimCode,
         async (event) => {
           await logRenderFailure({ ...event, promptRole: 'codeRetry' })
-        }
+        },
+        async () => ensureJobNotCancelled(jobId)
       )
 
       if (typeof retryManagerResult.generationTimeMs === 'number') {

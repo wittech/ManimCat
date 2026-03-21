@@ -5,11 +5,13 @@ import type {
   RenderResult,
   RetryManagerResult,
   ChatMessage,
-  CodeRetryContext
+  CodeRetryContext,
+  RetryCheckpoint
 } from './types'
 import type { OutputMode, PromptOverrides } from '../../types'
 import { extractErrorMessage, getErrorType } from './utils'
 import { retryCodeGeneration } from './code-generation'
+import { JobCancelledError } from '../../utils/errors'
 
 const logger = createLogger('CodeRetryManager')
 
@@ -44,7 +46,8 @@ export async function executeCodeRetry(
     stdout: string
     peakMemoryMB: number
     exitCode?: number
-  }) => Promise<void> | void
+  }) => Promise<void> | void,
+  onCheckpoint?: RetryCheckpoint
 ): Promise<RetryManagerResult> {
   logger.info('Starting code retry manager', {
     concept: context.concept,
@@ -55,6 +58,10 @@ export async function executeCodeRetry(
   let currentCode = initialCode?.trim() || ''
   if (!currentCode) {
     throw new Error('Code retry requires existing code; full regeneration mode is disabled')
+  }
+
+  if (onCheckpoint) {
+    await onCheckpoint()
   }
 
   let renderResult = await renderer(currentCode)
@@ -93,6 +100,10 @@ export async function executeCodeRetry(
     })
 
     try {
+      if (onCheckpoint) {
+        await onCheckpoint()
+      }
+
       const generationStart = Date.now()
       currentCode = await retryCodeGeneration(
         context,
@@ -103,6 +114,10 @@ export async function executeCodeRetry(
         customApiConfig
       )
       generationTimeMs += Date.now() - generationStart
+
+      if (onCheckpoint) {
+        await onCheckpoint()
+      }
 
       renderResult = await renderer(currentCode)
       currentCodeSnippet = renderResult.codeSnippet || currentCode
@@ -132,6 +147,14 @@ export async function executeCodeRetry(
       errorType = getErrorType(renderResult.stderr)
       logger.warn('Retry render failed', { attempt: attempt + 1, errorType, error: errorMessage })
     } catch (error) {
+      if (error instanceof JobCancelledError) {
+        logger.warn('Code retry aborted because job was cancelled', {
+          attempt: attempt + 1,
+          reason: error.details
+        })
+        throw error
+      }
+
       logger.error('Retry patch process failed', { attempt: attempt + 1, error: String(error) })
     }
   }

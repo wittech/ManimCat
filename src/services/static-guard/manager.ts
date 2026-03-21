@@ -339,6 +339,11 @@ export async function runStaticGuardLoop(
     }
 
     const { diagnostics } = await runStaticChecks(currentCode, context.outputMode)
+
+    if (onCheckpoint) {
+      await onCheckpoint()
+    }
+
     if (diagnostics.length === 0) {
       logger.info('Static guard passed', { outputMode: context.outputMode, passes: passIndex - 1 })
       return {
@@ -375,8 +380,15 @@ export async function runStaticGuardLoop(
         diagnosticsPreview: previewDiagnostics(hardFixedDiagnostics)
       })
       if (remainingDiagnostics.length === 0) {
+        if (onCheckpoint) {
+          await onCheckpoint()
+        }
         continue
       }
+    }
+
+    if (onCheckpoint) {
+      await onCheckpoint()
     }
 
     const patchSet = await generateStaticPatch(currentCode, remainingDiagnostics, customApiConfig)
@@ -389,6 +401,11 @@ export async function runStaticGuardLoop(
       break
     }
     currentCode = applyPatchSet(currentCode, patchSet, remainingDiagnostics[0]?.line || 1)
+
+    if (onCheckpoint) {
+      await onCheckpoint()
+    }
+
     logger.info('Static guard patch applied', {
       passIndex,
       diagnosticCount: remainingDiagnostics.length,

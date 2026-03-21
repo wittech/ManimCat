@@ -7,6 +7,7 @@ import { executeManimCommand, type ManimExecuteOptions } from '../../../utils/ma
 import { findImageFile } from '../../../utils/file-utils'
 import { createRetryContext, executeCodeRetry } from '../../../services/code-retry/manager'
 import { ensureJobNotCancelled } from '../../../services/job-cancel'
+import { JobCancelledError } from '../../../utils/errors'
 import {
   createRenderFailureEvent,
   extractCodeSnippet,
@@ -205,6 +206,10 @@ async function renderImageBlocks(
       outputPaths: blocks.map((block) => path.join(outputDir, `${jobId}-${block.index}.png`))
     }
   } catch (error) {
+    if (error instanceof JobCancelledError) {
+      throw error
+    }
+
     return {
       success: false,
       stderr: error instanceof Error ? error.message : String(error),
@@ -328,7 +333,8 @@ export async function renderImages(
         manimCode,
         async (event) => {
           await logRenderFailure({ ...event, promptRole: 'codeRetry' })
-        }
+        },
+        async () => ensureJobNotCancelled(jobId)
       )
       if (typeof retryManagerResult.generationTimeMs === 'number' && timings) {
         timings.retry = retryManagerResult.generationTimeMs

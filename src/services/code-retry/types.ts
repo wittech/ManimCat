@@ -49,3 +49,5 @@ export interface RetryManagerResult {
   generationTimeMs?: number
   lastError?: string
 }
+
+export type RetryCheckpoint = () => Promise<void>
