@@ -11,7 +11,7 @@
     "build:backend": "tsc",
     "build:frontend": "cd frontend && npm run build",
     "start": "tsx src/server.ts",
-    "test": "echo \"Tests coming soon\" && exit 0"
+    "test": "tsc -p tsconfig.studio-agent-tests.json && node -e \"require('fs').mkdirSync('dist-tests', { recursive: true }); require('fs').writeFileSync('dist-tests/package.json', JSON.stringify({ type: 'commonjs' }))\" && node dist-tests/src/studio-agent/tests/run-tests.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.2",

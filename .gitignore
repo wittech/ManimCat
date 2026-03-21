@@ -61,3 +61,8 @@ tmp/
 
 public/images/*
 public/images/.gitkeep
+
+# Studio / test build artifacts
+dist-tests/
+public/assets/
+public/index.html

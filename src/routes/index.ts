@@ -19,6 +19,7 @@ import referenceImageUploadRouter from './reference-image-upload.route'
 import historyRouter from './history.route'
 import renderFailuresRouter from './render-failures.route'
 import problemFrameRouter from './problem-frame.route'
+import studioAgentRouter from './studio-agent.route'
 
 const router = express.Router()
 
@@ -36,7 +37,9 @@ router.use('/api', aiModelsRouter)
 router.use('/api', referenceImageUploadRouter)
 router.use('/api', historyRouter)
 router.use('/api', problemFrameRouter)
+router.use('/api', studioAgentRouter)
 router.use('/api/metrics', metricsRouter)
 router.use('/api/admin', renderFailuresRouter)
 
 export default router
+
