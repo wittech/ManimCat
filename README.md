@@ -217,6 +217,9 @@ This project is a substantial rework built on top of the original foundation. Th
 - Added problem framing before generation to help structure user requests
 - Added reference image upload support
 - Added a unified workspace for generation history and usage views
+- Added a usage metrics dashboard with daily charts, success rates, and timing breakdowns
+- Added a prompt template manager for viewing and overriding system prompts per role
+- Added dark / light theme toggle
 - Added a waiting-state 2048 mini-game
 - Added a refreshed visual style, settings panels, and provider configuration flows
 
