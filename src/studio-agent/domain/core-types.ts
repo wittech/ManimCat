@@ -1,6 +1,7 @@
 import type { StudioFileAttachment } from './message-types'
 
 export type StudioAgentType = 'builder' | 'reviewer' | 'designer'
+export type StudioToolChoice = 'auto' | 'required' | 'none'
 
 export type StudioPermissionLevel = 'L0' | 'L1' | 'L2' | 'L3' | 'L4'
 
@@ -39,6 +40,9 @@ export type StudioWorkResultKind =
   | 'edit-result'
   | 'failure-report'
 
+export type StudioSessionEventStatus = 'pending' | 'consumed'
+export type StudioSessionEventKind = 'render-status'
+
 export interface StudioPermissionRule {
   permission: string
   pattern: string
@@ -55,6 +59,7 @@ export interface StudioSession {
   directory: string
   permissionLevel: StudioPermissionLevel
   permissionRules: StudioPermissionRule[]
+  metadata?: Record<string, unknown>
   createdAt: string
   updatedAt: string
 }
@@ -106,4 +111,18 @@ export interface StudioWorkResult {
   attachments?: StudioFileAttachment[]
   metadata?: Record<string, unknown>
   createdAt: string
+}
+
+export interface StudioSessionEvent {
+  id: string
+  sessionId: string
+  runId?: string
+  kind: StudioSessionEventKind
+  status: StudioSessionEventStatus
+  title: string
+  summary: string
+  metadata?: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+  consumedAt?: string
 }

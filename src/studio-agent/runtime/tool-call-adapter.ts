@@ -21,6 +21,7 @@ import type {
   StudioSubagentRunResult
 } from './tool-runtime-context'
 import type { CustomApiConfig } from '../../types'
+import { buildStudioPreToolCommentary } from './pre-tool-commentary'
 
 export interface StudioToolCallExecutionOptions {
   projectId: string
@@ -42,12 +43,25 @@ export interface StudioToolCallExecutionOptions {
   resolveSkill?: (name: string, session: StudioSession) => Promise<StudioResolvedSkill>
   setToolMetadata: (callId: string, metadata: { title?: string; metadata?: Record<string, unknown> }) => void
   customApiConfig?: CustomApiConfig
+  commentary?: string | null
 }
 
 export async function* createStudioToolCallExecutionEvents(
   input: StudioToolCallExecutionOptions
 ): AsyncGenerator<StudioProcessorStreamEvent> {
   const tool = input.registry.get(input.toolName)
+  const commentary = input.commentary === undefined
+    ? buildStudioPreToolCommentary({
+        toolName: input.toolName,
+        toolInput: input.toolInput
+      })
+    : input.commentary?.trim() ?? ''
+
+  if (commentary) {
+    yield { type: 'text-start' }
+    yield { type: 'text-delta', text: commentary }
+    yield { type: 'text-end' }
+  }
 
   yield {
     type: 'tool-input-start',
@@ -209,3 +223,4 @@ function resolvePermissionPattern(input: Record<string, unknown>): string {
   }
   return '*'
 }
+

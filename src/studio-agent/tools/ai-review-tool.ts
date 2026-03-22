@@ -6,6 +6,7 @@ import { createStudioSession, createStudioWorkResult } from '../domain/factories
 import type { StudioToolDefinition, StudioToolResult, StudioWorkResult } from '../domain/types'
 import { buildChildSessionRules } from '../permissions/policy'
 import type { StudioRuntimeBackedToolContext } from '../runtime/tool-runtime-context'
+import { inheritStudioSessionMetadata } from '../runtime/session-agent-config'
 import { createWorkAndTask, publishWorkUpdated, updateTaskAndWork } from '../works/work-lifecycle'
 import { readWorkspaceFile, toWorkspaceRelativePath, truncateToolText } from './workspace-paths'
 
@@ -79,7 +80,8 @@ async function executeAiReviewTool(
       permissionRules: buildChildSessionRules({
         parentRules: context.session.permissionRules,
         denyTask: true
-      })
+      }),
+      metadata: inheritStudioSessionMetadata(context.session)
     })
   )
 
@@ -338,3 +340,6 @@ async function createReviewWorkResult(input: {
 
   return result
 }
+
+
+

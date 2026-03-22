@@ -10,8 +10,10 @@ import type {
   StudioRunStore,
   StudioRuntimeTurnPlan,
   StudioSession,
+  StudioSessionEventStore,
   StudioSessionStore,
   StudioTaskStore,
+  StudioToolChoice,
   StudioWorkResultStore,
   StudioWorkStore
 } from '../domain/types'
@@ -31,6 +33,7 @@ interface StudioBuilderRuntimeOptions {
   partStore: StudioPartStore
   runStore?: StudioRunStore
   sessionStore?: StudioSessionStore
+  sessionEventStore?: StudioSessionEventStore
   permissionService?: StudioPermissionService
   askForConfirmation?: (request: StudioPermissionRequest) => Promise<StudioPermissionDecision>
   taskStore?: StudioTaskStore
@@ -51,6 +54,7 @@ export class StudioBuilderRuntime {
       partStore: options.partStore,
       runStore: options.runStore,
       sessionStore: options.sessionStore,
+      sessionEventStore: options.sessionEventStore,
       permissionService: options.permissionService,
       askForConfirmation: options.askForConfirmation,
       taskStore: options.taskStore,
@@ -77,13 +81,15 @@ export class StudioBuilderRuntime {
     assistantMessage: StudioAssistantMessage
     plan: StudioRuntimeTurnPlan
     customApiConfig?: CustomApiConfig
+    toolChoice?: StudioToolChoice
   }): Promise<void> {
     await this.runner.runWithPlan({
       projectId: input.projectId,
       session: input.session,
       inputText: input.run.inputText,
       plan: input.plan,
-      customApiConfig: input.customApiConfig
+      customApiConfig: input.customApiConfig,
+      toolChoice: input.toolChoice
     })
   }
 
@@ -92,6 +98,7 @@ export class StudioBuilderRuntime {
     session: StudioSession
     inputText: string
     customApiConfig?: CustomApiConfig
+    toolChoice?: StudioToolChoice
   }): Promise<StudioSubagentRunResult & { run: StudioRun; assistantMessage: StudioAssistantMessage }> {
     return this.runner.run(input)
   }

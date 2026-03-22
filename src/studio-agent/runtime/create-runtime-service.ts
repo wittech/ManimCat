@@ -6,6 +6,7 @@ import type {
   StudioPermissionRequest,
   StudioSession,
   StudioTask,
+  StudioToolChoice,
   StudioWork,
   StudioWorkResult,
 } from '../domain/types'
@@ -21,6 +22,8 @@ import { StudioToolRegistry } from '../tools/registry'
 import { StudioBuilderRuntime } from './builder-runtime'
 import { createStudioDefaultTurnPlanResolver } from './default-turn-plan-resolver'
 import { syncStudioRenderTask } from './render-task-sync'
+import { createStudioSessionMetadata } from './session-agent-config'
+import { flushTerminalSessionEventsToAssistant } from './session-event-inbox'
 import type { StudioWorkspaceProvider } from '../workspace/studio-workspace-provider'
 
 interface SubscribableStudioEventBus extends StudioEventBus {
@@ -49,6 +52,7 @@ export interface StudioRuntimeService {
   taskStore: StudioPersistence['taskStore']
   workStore: StudioPersistence['workStore']
   workResultStore: StudioPersistence['workResultStore']
+  sessionEventStore: StudioPersistence['sessionEventStore']
   eventBus: StudioEventBus
   createSession: (sessionInput: {
     projectId: string
@@ -57,6 +61,7 @@ export interface StudioRuntimeService {
     agentType?: StudioSession['agentType']
     permissionLevel?: StudioPermissionLevel
     workspaceId?: string
+    toolChoice?: StudioToolChoice
   }) => Promise<StudioSession>
   getSession: (sessionId: string) => Promise<StudioSession | null>
   syncSession: (sessionId: string) => Promise<void>
@@ -88,6 +93,7 @@ export function createStudioRuntimeService(input: CreateStudioRuntimeServiceInpu
     taskStore: input.persistence.taskStore,
     workStore: input.persistence.workStore,
     workResultStore: input.persistence.workResultStore,
+    sessionEventStore: input.persistence.sessionEventStore,
     permissionService: input.permissionService,
     resolveTurnPlan,
     resolveSkill,
@@ -114,6 +120,7 @@ export function createStudioRuntimeService(input: CreateStudioRuntimeServiceInpu
     taskStore: input.persistence.taskStore,
     workStore: input.persistence.workStore,
     workResultStore: input.persistence.workResultStore,
+    sessionEventStore: input.persistence.sessionEventStore,
     eventBus,
     async createSession(sessionInput) {
       const permissionLevel = sessionInput.permissionLevel ?? 'L2'
@@ -128,6 +135,11 @@ export function createStudioRuntimeService(input: CreateStudioRuntimeServiceInpu
           directory: normalizedDirectory,
           permissionLevel,
           permissionRules: defaultRulesForLevel(permissionLevel),
+          metadata: createStudioSessionMetadata({
+            agentConfig: {
+              toolChoice: sessionInput.toolChoice
+            }
+          })
         })
       )
     },
@@ -144,6 +156,13 @@ export function createStudioRuntimeService(input: CreateStudioRuntimeServiceInpu
           blobStore: input.blobStore,
         })
       }
+
+      await flushTerminalSessionEventsToAssistant({
+        sessionId,
+        sessionEventStore: input.persistence.sessionEventStore,
+        messageStore: input.persistence.messageStore,
+        partStore: input.persistence.partStore
+      })
     },
     async listWorkResultsBySessionId(sessionId: string): Promise<StudioWorkResult[]> {
       const works = await input.persistence.workStore.listBySessionId(sessionId)
@@ -185,6 +204,7 @@ async function syncTaskState(input: {
     workStore: input.persistence.workStore,
     workResultStore: input.persistence.workResultStore,
     sessionStore: input.persistence.sessionStore,
+    sessionEventStore: input.persistence.sessionEventStore,
     messageStore: input.persistence.messageStore,
     partStore: input.persistence.partStore,
     eventBus: input.eventBus,

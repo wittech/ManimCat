@@ -35,6 +35,7 @@ export function createStudioSession(input: {
   directory: string
   permissionLevel: StudioPermissionLevel
   permissionRules?: StudioPermissionRule[]
+  metadata?: Record<string, unknown>
 }): StudioSession {
   const timestamp = nowIso()
   return {
@@ -47,6 +48,7 @@ export function createStudioSession(input: {
     directory: input.directory,
     permissionLevel: input.permissionLevel,
     permissionRules: input.permissionRules ?? [],
+    metadata: input.metadata,
     createdAt: timestamp,
     updatedAt: timestamp
   }
@@ -227,3 +229,4 @@ export function replaceMessagePart(parts: StudioMessagePart[], nextPart: StudioM
   next[index] = nextPart
   return next
 }
+

@@ -5,6 +5,7 @@ import type {
   StudioWorkType
 } from '../domain/types'
 import { buildChildSessionRules } from '../permissions/policy'
+import { inheritStudioSessionMetadata } from '../runtime/session-agent-config'
 import type { StudioRuntimeBackedToolContext } from '../runtime/tool-runtime-context'
 import { createWorkAndTask, updateTaskAndWork } from '../works/work-lifecycle'
 
@@ -61,7 +62,8 @@ async function executeTaskTool(
       permissionRules: buildChildSessionRules({
         parentRules: context.session.permissionRules,
         denyTask: true
-      })
+      }),
+      metadata: inheritStudioSessionMetadata(context.session)
     })
   )
 

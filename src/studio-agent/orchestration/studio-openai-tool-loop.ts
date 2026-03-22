@@ -1,4 +1,3 @@
-import OpenAI from 'openai'
 import type {
   StudioAssistantMessage,
   StudioMessageStore,
@@ -8,6 +7,7 @@ import type {
   StudioSession,
   StudioSessionStore,
   StudioTaskStore,
+  StudioToolChoice,
   StudioWorkContext,
   StudioWorkResultStore,
   StudioWorkStore
@@ -25,7 +25,9 @@ import type {
 import type { CustomApiConfig } from '../../types'
 import { buildStudioAgentSystemPrompt } from './studio-agent-prompt'
 import { buildStudioConversationMessages } from './studio-message-history'
+import { determineStudioAgentLoopAction } from './studio-agent-loop-policy'
 import { buildStudioChatTools } from './studio-tool-schema'
+import { buildStudioPreToolCommentary } from '../runtime/pre-tool-commentary'
 
 const DEFAULT_MAX_STEPS = 8
 
@@ -50,6 +52,7 @@ interface StudioOpenAIToolLoopInput {
   setToolMetadata: (callId: string, metadata: { title?: string; metadata?: Record<string, unknown> }) => void
   customApiConfig: CustomApiConfig
   maxSteps?: number
+  toolChoice?: StudioToolChoice
 }
 
 export async function* createStudioOpenAIToolLoop(
@@ -71,6 +74,7 @@ export async function* createStudioOpenAIToolLoop(
     workContext: input.workContext
   })
   const maxSteps = input.maxSteps ?? DEFAULT_MAX_STEPS
+  const toolChoice = input.toolChoice ?? 'auto'
 
   for (let step = 0; step < maxSteps; step += 1) {
     const completion = await client.chat.completions.create({
@@ -80,7 +84,7 @@ export async function* createStudioOpenAIToolLoop(
         ...conversation
       ],
       tools,
-      tool_choice: 'auto'
+      tool_choice: toolChoice
     })
 
     const choice = completion.choices[0]
@@ -94,7 +98,27 @@ export async function* createStudioOpenAIToolLoop(
       yield { type: 'text-end' }
     }
 
-    if (toolCalls.length === 0) {
+    const nextAction = determineStudioAgentLoopAction({
+      finishReason: choice?.finish_reason ?? null,
+      toolCallCount: toolCalls.length,
+      step,
+      maxSteps
+    })
+
+    if (nextAction.type === 'finish') {
+      yield {
+        type: 'finish-step',
+        usage: {
+          tokens: completion.usage?.total_tokens
+        }
+      }
+      return
+    }
+
+    if (nextAction.type === 'abort') {
+      yield { type: 'text-start' }
+      yield { type: 'text-delta', text: nextAction.message }
+      yield { type: 'text-end' }
       yield {
         type: 'finish-step',
         usage: {
@@ -118,6 +142,7 @@ export async function* createStudioOpenAIToolLoop(
     })
 
     let shouldStop = false
+    const hasAssistantText = Boolean(assistantText)
     for (const toolCall of toolCalls) {
       const toolName = toolCall.function.name
       const toolCallId = toolCall.id
@@ -170,7 +195,13 @@ export async function* createStudioOpenAIToolLoop(
         runSubagent: input.runSubagent,
         resolveSkill: input.resolveSkill,
         setToolMetadata: input.setToolMetadata,
-        customApiConfig: input.customApiConfig
+        customApiConfig: input.customApiConfig,
+        commentary: hasAssistantText
+          ? null
+          : buildStudioPreToolCommentary({
+              toolName,
+              toolInput: parsedInput.value
+            })
       })) {
         transcript = eventToTranscript(event, transcript)
         if (event.type === 'tool-error') {
@@ -201,12 +232,6 @@ export async function* createStudioOpenAIToolLoop(
       return
     }
   }
-
-  const stepLimitMessage = `Stopped after reaching the Studio agent step limit (${maxSteps}).`
-  yield { type: 'text-start' }
-  yield { type: 'text-delta', text: stepLimitMessage }
-  yield { type: 'text-end' }
-  yield { type: 'finish-step' }
 }
 
 function normalizeAssistantText(content: unknown): string {

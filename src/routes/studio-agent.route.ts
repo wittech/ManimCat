@@ -7,26 +7,24 @@ import {
   sendStudioError,
   sendStudioSuccess
 } from './helpers/studio-agent-responses'
-import { parseStudioCreateRunRequest } from './helpers/studio-agent-run-request'
+import { parseStudioCreateRunRequest, parseStudioCreateSessionRequest } from './helpers/studio-agent-run-request'
 import { ensureDefaultStudioWorkspaceExists } from '../studio-agent/workspace/default-studio-workspace'
 
 const router = express.Router()
 
 router.post('/studio-agent/sessions', authMiddleware, asyncHandler(async (req, res) => {
-  const projectId = typeof req.body.projectId === 'string' && req.body.projectId.trim()
-    ? req.body.projectId.trim()
-    : 'default-project'
-  const directory = typeof req.body.directory === 'string' && req.body.directory.trim()
-    ? req.body.directory.trim()
-    : ensureDefaultStudioWorkspaceExists()
+  const parsed = parseStudioCreateSessionRequest(req.body)
+  const projectId = parsed.projectId ?? 'default-project'
+  const directory = parsed.directory ?? ensureDefaultStudioWorkspaceExists()
 
   const session = await studioRuntime.createSession({
     projectId,
     directory,
-    title: typeof req.body.title === 'string' ? req.body.title : undefined,
-    agentType: req.body.agentType,
-    permissionLevel: req.body.permissionLevel,
-    workspaceId: typeof req.body.workspaceId === 'string' ? req.body.workspaceId : undefined
+    title: parsed.title,
+    agentType: parsed.agentType,
+    permissionLevel: parsed.permissionLevel,
+    workspaceId: parsed.workspaceId,
+    toolChoice: parsed.toolChoice
   })
 
   sendStudioSuccess(res, { session })
@@ -40,15 +38,16 @@ router.get('/studio-agent/sessions/:sessionId', authMiddleware, asyncHandler(asy
 
   await studioRuntime.syncSession(session.id)
 
-  const [messages, runs, tasks, works, workResults] = await Promise.all([
+  const [messages, runs, sessionEvents, tasks, works, workResults] = await Promise.all([
     studioRuntime.messageStore.listBySessionId(session.id),
     studioRuntime.runStore.listBySessionId(session.id),
+    studioRuntime.sessionEventStore.listBySessionId(session.id),
     studioRuntime.taskStore.listBySessionId(session.id),
     studioRuntime.workStore.listBySessionId(session.id),
     studioRuntime.listWorkResultsBySessionId(session.id)
   ])
 
-  sendStudioSuccess(res, { session, messages, runs, tasks, works, workResults })
+  sendStudioSuccess(res, { session, messages, runs, sessionEvents, tasks, works, workResults })
 }))
 
 router.get('/studio-agent/runs/:runId', authMiddleware, asyncHandler(async (req, res) => {
@@ -80,12 +79,13 @@ router.get('/studio-agent/works/:sessionId', authMiddleware, asyncHandler(async 
 
   await studioRuntime.syncSession(session.id)
 
-  const [works, workResults] = await Promise.all([
+  const [sessionEvents, works, workResults] = await Promise.all([
+    studioRuntime.sessionEventStore.listBySessionId(session.id),
     studioRuntime.workStore.listBySessionId(session.id),
     studioRuntime.listWorkResultsBySessionId(session.id)
   ])
 
-  sendStudioSuccess(res, { sessionId: session.id, works, workResults })
+  sendStudioSuccess(res, { sessionId: session.id, sessionEvents, works, workResults })
 }))
 
 router.get('/studio-agent/events', authMiddleware, asyncHandler(async (req, res) => {
@@ -139,13 +139,15 @@ router.post('/studio-agent/runs', authMiddleware, asyncHandler(async (req, res) 
     projectId,
     session,
     inputText,
-    customApiConfig: parsed.customApiConfig
+    customApiConfig: parsed.customApiConfig,
+    toolChoice: parsed.toolChoice
   })
 
   await studioRuntime.syncSession(session.id)
 
-  const [messages, tasks, works, workResults] = await Promise.all([
+  const [messages, sessionEvents, tasks, works, workResults] = await Promise.all([
     studioRuntime.messageStore.listBySessionId(session.id),
+    studioRuntime.sessionEventStore.listBySessionId(session.id),
     studioRuntime.taskStore.listBySessionId(session.id),
     studioRuntime.workStore.listBySessionId(session.id),
     studioRuntime.listWorkResultsBySessionId(session.id)
@@ -156,6 +158,7 @@ router.post('/studio-agent/runs', authMiddleware, asyncHandler(async (req, res) 
     assistantMessage: result.assistantMessage,
     text: result.text,
     messages,
+    sessionEvents,
     tasks,
     works,
     workResults,
@@ -202,3 +205,4 @@ router.post('/studio-agent/permissions/reply', authMiddleware, replyPermissionHa
 router.post('/studio-agent/permissions/:requestID/reply', authMiddleware, replyPermissionHandler)
 
 export default router
+

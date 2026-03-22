@@ -3,6 +3,7 @@ import type {
   StudioPermissionRequest,
   StudioSession,
   StudioSessionStore,
+  StudioToolChoice,
   StudioToolContext
 } from '../domain/types'
 import type { CustomApiConfig } from '../../types'
@@ -17,6 +18,7 @@ export interface StudioSubagentRunRequest {
   skillName?: string
   files?: string[]
   customApiConfig?: CustomApiConfig
+  toolChoice?: StudioToolChoice
 }
 
 export interface StudioSubagentRunResult {

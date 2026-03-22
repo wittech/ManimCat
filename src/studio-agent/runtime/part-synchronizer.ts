@@ -17,7 +17,13 @@ export class StudioPartSynchronizer {
     part: StudioMessagePart
   ): Promise<StudioMessagePart> {
     await this.partStore.create(part)
-    const refreshed = replaceMessagePart(assistantMessage.parts, part)
+
+    const currentMessage = await this.messageStore.getById(assistantMessage.id)
+    const currentParts = currentMessage && currentMessage.role === 'assistant'
+      ? currentMessage.parts
+      : assistantMessage.parts
+
+    const refreshed = replaceMessagePart(currentParts, part)
     const updated = await this.messageStore.updateAssistantMessage(assistantMessage.id, {
       parts: refreshed
     })
@@ -48,3 +54,4 @@ export class StudioPartSynchronizer {
     })
   }
 }
+

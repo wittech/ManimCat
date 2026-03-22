@@ -9,6 +9,8 @@ import type {
   StudioRun,
   StudioRunStore,
   StudioSession,
+  StudioSessionEvent,
+
   StudioSessionStore,
   StudioTask,
   StudioTaskStore,
@@ -25,6 +27,7 @@ const TABLES = {
   messages: 'studio_messages',
   parts: 'studio_message_parts',
   runs: 'studio_runs',
+  sessionEvents: 'studio_session_events',
   tasks: 'studio_tasks',
   works: 'studio_works',
   workResults: 'studio_work_results',
@@ -42,6 +45,7 @@ type StudioSessionRow = {
   directory: string
   permission_level: StudioSession['permissionLevel']
   permission_rules: StudioPermissionRule[] | null
+  metadata: JsonRecord | null
   created_at: string
   updated_at: string
 }
@@ -82,6 +86,21 @@ type StudioRunRow = {
   completed_at: string | null
   error: string | null
 }
+
+type StudioSessionEventRow = {
+  id: string
+  session_id: string
+  run_id: string | null
+  kind: StudioSessionEvent['kind']
+  status: StudioSessionEvent['status']
+  title: string
+  summary: string
+  metadata: JsonRecord | null
+  created_at: string
+  updated_at: string
+  consumed_at: string | null
+}
+
 
 type StudioTaskRow = {
   id: string
@@ -129,6 +148,7 @@ export function createSupabaseStudioPersistence(client: SupabaseClient): StudioP
     messageStore: createSupabaseStudioMessageStore(client),
     partStore,
     runStore: createSupabaseStudioRunStore(client),
+    sessionEventStore: createSupabaseStudioSessionEventStore(client),
     taskStore: createSupabaseStudioTaskStore(client),
     workStore: createSupabaseStudioWorkStore(client),
     workResultStore: createSupabaseStudioWorkResultStore(client),
@@ -261,6 +281,18 @@ function createSupabaseStudioRunStore(client: SupabaseClient): StudioRunStore {
     toRow: toRunRow,
     fromRow: fromRunRow,
     toPatch: toRunPatch,
+    listColumn: 'session_id',
+    listOrderColumn: 'created_at',
+  })
+}
+
+function createSupabaseStudioSessionEventStore(client: SupabaseClient) {
+  return createCrudStore<StudioSessionEvent, StudioSessionEventRow>({
+    client,
+    table: TABLES.sessionEvents,
+    toRow: toSessionEventRow,
+    fromRow: fromSessionEventRow,
+    toPatch: toSessionEventPatch,
     listColumn: 'session_id',
     listOrderColumn: 'created_at',
   })
@@ -411,6 +443,7 @@ function fromSessionRow(row: StudioSessionRow): StudioSession {
     directory: row.directory,
     permissionLevel: row.permission_level,
     permissionRules: row.permission_rules ?? [],
+    metadata: row.metadata ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -448,6 +481,22 @@ function fromPartRow(row: StudioPartRow): StudioMessagePart {
     callId: row.call_id ?? row.id,
     state: (row.state ?? { status: 'pending', input: {}, raw: '' }) as StudioMessagePart extends infer _ ? any : never,
     metadata: row.metadata ?? undefined,
+  }
+}
+
+function fromSessionEventRow(row: StudioSessionEventRow): StudioSessionEvent {
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    runId: row.run_id ?? undefined,
+    kind: row.kind,
+    status: row.status,
+    title: row.title,
+    summary: row.summary,
+    metadata: row.metadata ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    consumedAt: row.consumed_at ?? undefined,
   }
 }
 
@@ -519,6 +568,7 @@ function toSessionRow(session: StudioSession): StudioSessionRow {
     directory: session.directory,
     permission_level: session.permissionLevel,
     permission_rules: session.permissionRules,
+    metadata: session.metadata ?? null,
     created_at: session.createdAt,
     updated_at: session.updatedAt,
   }
@@ -582,6 +632,22 @@ function toPartRow(part: StudioMessagePart): StudioPartRow {
     time: null,
     created_at: now,
     updated_at: now,
+  }
+}
+
+function toSessionEventRow(event: StudioSessionEvent): StudioSessionEventRow {
+  return {
+    id: event.id,
+    session_id: event.sessionId,
+    run_id: event.runId ?? null,
+    kind: event.kind,
+    status: event.status,
+    title: event.title,
+    summary: event.summary,
+    metadata: event.metadata ?? null,
+    created_at: event.createdAt,
+    updated_at: event.updatedAt,
+    consumed_at: event.consumedAt ?? null,
   }
 }
 
@@ -652,6 +718,7 @@ function toSessionPatch(patch: Partial<StudioSession>) {
     directory: patch.directory,
     permission_level: patch.permissionLevel,
     permission_rules: patch.permissionRules,
+    metadata: patch.metadata,
   })
 }
 
@@ -683,6 +750,21 @@ function toPartPatch(patch: Partial<StudioMessagePart>) {
     time: 'time' in patch ? patch.time : undefined,
     session_id: patch.sessionId,
     message_id: patch.messageId,
+  })
+}
+
+function toSessionEventPatch(patch: Partial<StudioSessionEvent>) {
+  return compactObject({
+    session_id: patch.sessionId,
+    run_id: patch.runId,
+    kind: patch.kind,
+    status: patch.status,
+    title: patch.title,
+    summary: patch.summary,
+    metadata: patch.metadata,
+    created_at: patch.createdAt,
+    updated_at: patch.updatedAt,
+    consumed_at: patch.consumedAt,
   })
 }
 
@@ -760,4 +842,7 @@ function asTimeRange(value: JsonRecord | null) {
 function asAttachments(value: JsonRecord[] | null): StudioWorkResult['attachments'] | undefined {
   return value ? (value as unknown as StudioWorkResult['attachments']) : undefined
 }
+
+
+
 

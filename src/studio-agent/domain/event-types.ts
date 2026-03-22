@@ -1,4 +1,4 @@
-import type { StudioRun, StudioTask, StudioWork, StudioWorkResult } from './core-types'
+import type { StudioRun, StudioSession, StudioSessionEvent, StudioTask, StudioWork, StudioWorkResult } from './core-types'
 import type { StudioFileAttachment } from './message-types'
 import type { StudioPermissionDecision, StudioPermissionRequest } from './tool-types'
 
@@ -84,6 +84,13 @@ export interface StudioWorkResultEvent {
   result: StudioWorkResult
 }
 
+export interface StudioSessionEventQueuedEvent {
+  type: 'session_event_queued'
+  sessionId: string
+  runId?: string
+  event: StudioSessionEvent
+}
+
 export interface StudioRunEvent {
   type: 'run_updated'
   run: StudioRun
@@ -100,6 +107,7 @@ export type StudioAgentEvent =
   | StudioTaskEvent
   | StudioWorkEvent
   | StudioWorkResultEvent
+  | StudioSessionEventQueuedEvent
   | StudioRunEvent
 
 export interface StudioEventBus {

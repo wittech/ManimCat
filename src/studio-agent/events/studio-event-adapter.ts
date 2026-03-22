@@ -37,6 +37,57 @@ export function adaptStudioEvent(event: StudioAgentEvent): StudioExternalEvent |
         }
       }
 
+    case 'session_event_queued':
+      return {
+        type: 'session-event.queued',
+        properties: {
+          sessionId: event.sessionId,
+          runId: event.runId,
+          event: event.event
+        }
+      }
+
+    case 'tool_input_start':
+      return {
+        type: 'tool.input-start',
+        properties: {
+          sessionId: event.sessionId,
+          runId: event.runId,
+          toolName: event.toolName,
+          callId: event.callId,
+          raw: event.raw
+        }
+      }
+
+    case 'tool_call':
+      return {
+        type: 'tool.call',
+        properties: {
+          sessionId: event.sessionId,
+          runId: event.runId,
+          toolName: event.toolName,
+          callId: event.callId,
+          input: event.input
+        }
+      }
+
+    case 'tool_result':
+      return {
+        type: 'tool.result',
+        properties: {
+          sessionId: event.sessionId,
+          runId: event.runId,
+          toolName: event.toolName,
+          callId: event.callId,
+          status: event.status,
+          title: event.title,
+          output: event.output,
+          metadata: event.metadata,
+          attachments: event.attachments,
+          error: event.error
+        }
+      }
+
     case 'permission.asked':
       return {
         type: 'permission.asked',
@@ -94,3 +145,4 @@ export function adaptStudioEvent(event: StudioAgentEvent): StudioExternalEvent |
       return null
   }
 }
+

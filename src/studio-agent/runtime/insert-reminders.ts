@@ -35,6 +35,11 @@ function buildReminders(input: InsertStudioRemindersInput): string[] {
     reminders.push('最近一次 render 结果失败，后续动作应优先参考 failure-report。')
   }
 
+  if (input.workContext?.pendingEvents?.length) {
+    const latestEvents = input.workContext.pendingEvents.slice(0, 3).map((event) => event.summary)
+    reminders.push(`待处理后台状态更新：${latestEvents.join(' | ')}`)
+  }
+
   if (input.unsupportedRequestedTools.length) {
     reminders.push(`当前自动规划还没覆盖这些工具：${input.unsupportedRequestedTools.join(', ')}。`)
   }

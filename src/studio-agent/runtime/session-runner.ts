@@ -21,6 +21,7 @@ import {
   finalizeRunState
 } from './session-runner-helpers'
 import { buildStudioWorkContext } from './work-context'
+import { resolveStudioToolChoice } from './session-agent-config'
 import type {
   StudioAssistantMessage,
   StudioEventBus,
@@ -32,8 +33,10 @@ import type {
   StudioRunStore,
   StudioRuntimeTurnPlan,
   StudioSession,
+  StudioSessionEventStore,
   StudioSessionStore,
   StudioTaskStore,
+  StudioToolChoice,
   StudioWorkContext,
   StudioWorkResultStore,
   StudioWorkStore
@@ -48,6 +51,7 @@ interface StudioSessionRunnerOptions {
   partStore: StudioPartStore
   runStore?: StudioRunStore
   sessionStore?: StudioSessionStore
+  sessionEventStore?: StudioSessionEventStore
   permissionService?: StudioPermissionService
   askForConfirmation?: (request: StudioPermissionRequest) => Promise<StudioPermissionDecision>
   taskStore?: StudioTaskStore
@@ -64,6 +68,7 @@ export class StudioSessionRunner {
   private readonly messageStore: StudioMessageStore
   private readonly runStore?: StudioRunStore
   private readonly sessionStore?: StudioSessionStore
+  private readonly sessionEventStore?: StudioSessionEventStore
   private readonly permissionService?: StudioPermissionService
   private readonly askForConfirmation: (request: StudioPermissionRequest) => Promise<StudioPermissionDecision>
   private readonly taskStore?: StudioTaskStore
@@ -82,6 +87,7 @@ export class StudioSessionRunner {
     })
     this.runStore = options.runStore
     this.sessionStore = options.sessionStore
+    this.sessionEventStore = options.sessionEventStore
     this.permissionService = options.permissionService
     this.taskStore = options.taskStore
     this.workStore = options.workStore
@@ -106,6 +112,7 @@ export class StudioSessionRunner {
     session: StudioSession
     inputText: string
     customApiConfig?: CustomApiConfig
+    toolChoice?: StudioToolChoice
   }): Promise<StudioSubagentRunResult & { run: StudioRun; assistantMessage: StudioAssistantMessage }> {
     const workContext = await this.buildWorkContext(input)
 
@@ -113,6 +120,7 @@ export class StudioSessionRunner {
       return this.runWithAgentLoop({
         ...input,
         customApiConfig: input.customApiConfig,
+        toolChoice: resolveStudioToolChoice({ session: input.session, override: input.toolChoice }),
         workContext
       })
     }
@@ -139,6 +147,7 @@ export class StudioSessionRunner {
     inputText: string
     plan: StudioRuntimeTurnPlan
     customApiConfig?: CustomApiConfig
+    toolChoice?: StudioToolChoice
   }): Promise<StudioSubagentRunResult & { run: StudioRun; assistantMessage: StudioAssistantMessage }> {
     const workContext = await this.buildWorkContext(input)
     return this.runWithResolvedPlan({
@@ -162,7 +171,8 @@ export class StudioSessionRunner {
         skill,
         files: input.files
       }),
-      customApiConfig: input.customApiConfig
+      customApiConfig: input.customApiConfig,
+      toolChoice: input.toolChoice ?? resolveStudioToolChoice({ session: input.childSession })
     })
 
     return {
@@ -181,7 +191,8 @@ export class StudioSessionRunner {
       assistantMessage: draftAssistantMessage,
       workStore: this.workStore,
       workResultStore: this.workResultStore,
-      taskStore: this.taskStore
+      taskStore: this.taskStore,
+      sessionEventStore: this.sessionEventStore
     })
 
     return workContext ?? {
@@ -197,6 +208,7 @@ export class StudioSessionRunner {
     plan: StudioRuntimeTurnPlan
     workContext: StudioWorkContext
     customApiConfig?: CustomApiConfig
+    toolChoice?: StudioToolChoice
   }): Promise<StudioSubagentRunResult & { run: StudioRun; assistantMessage: StudioAssistantMessage }> {
     const run = this.createRun(input.session, input.inputText)
     const persistedRun = this.runStore ? await this.runStore.create(run) : run
@@ -214,6 +226,7 @@ export class StudioSessionRunner {
         session: input.session,
         run: persistedRun,
         assistantMessage,
+        eventBus,
         events: createStudioTurnExecutionStream({
           projectId: input.projectId,
           session: input.session,
@@ -230,7 +243,8 @@ export class StudioSessionRunner {
           askForConfirmation: this.askForConfirmation,
           runSubagent: (request) => this.runSubagent({
             ...request,
-            customApiConfig: input.customApiConfig
+            customApiConfig: input.customApiConfig,
+            toolChoice: input.toolChoice
           }),
           resolveSkill: this.resolveSkill,
           setToolMetadata: (callId, metadata) => {
@@ -266,6 +280,7 @@ export class StudioSessionRunner {
     session: StudioSession
     inputText: string
     customApiConfig: CustomApiConfig
+    toolChoice?: StudioToolChoice
     workContext: StudioWorkContext
   }): Promise<StudioSubagentRunResult & { run: StudioRun; assistantMessage: StudioAssistantMessage }> {
     const run = this.createRun(input.session, input.inputText)
@@ -284,6 +299,7 @@ export class StudioSessionRunner {
         session: input.session,
         run: persistedRun,
         assistantMessage,
+        eventBus,
         events: createStudioOpenAIToolLoop({
           projectId: input.projectId,
           session: input.session,
@@ -302,7 +318,8 @@ export class StudioSessionRunner {
           askForConfirmation: this.askForConfirmation,
           runSubagent: (request) => this.runSubagent({
             ...request,
-            customApiConfig: input.customApiConfig
+            customApiConfig: input.customApiConfig,
+            toolChoice: input.toolChoice
           }),
           resolveSkill: this.resolveSkill,
           setToolMetadata: (callId, metadata) => {
@@ -313,7 +330,8 @@ export class StudioSessionRunner {
               metadata: metadata.metadata
             })
           },
-          customApiConfig: input.customApiConfig
+          customApiConfig: input.customApiConfig,
+          toolChoice: input.toolChoice
         })
       })
 
@@ -347,6 +365,11 @@ export class StudioSessionRunner {
       run: finishedRun
     })
 
+    const refreshedMessage = await this.messageStore.getById(input.assistantMessage.id)
+    const finalAssistantMessage = refreshedMessage && refreshedMessage.role === 'assistant'
+      ? refreshedMessage
+      : input.assistantMessage
+
     logger.info('Studio session run completed', {
       sessionId: input.input.session.id,
       runId: input.run.id,
@@ -357,8 +380,8 @@ export class StudioSessionRunner {
 
     return {
       run: finishedRun,
-      assistantMessage: input.assistantMessage,
-      text: extractLatestAssistantText(input.assistantMessage.parts)
+      assistantMessage: finalAssistantMessage,
+      text: extractLatestAssistantText(finalAssistantMessage.parts)
     }
   }
 
@@ -393,4 +416,5 @@ function hasUsableCustomApiConfig(config?: CustomApiConfig): config is CustomApi
 
   return [config.apiUrl, config.apiKey, config.model].every((value) => typeof value === 'string' && value.trim().length > 0)
 }
+
 

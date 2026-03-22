@@ -44,9 +44,11 @@ interface StudioTurnExecutionOptions {
 export async function* createStudioTurnExecutionStream(
   input: StudioTurnExecutionOptions
 ): AsyncGenerator<StudioProcessorStreamEvent> {
-  if (input.plan.assistantText) {
+  const hasAssistantText = Boolean(input.plan.assistantText?.trim())
+
+  if (hasAssistantText) {
     yield { type: 'text-start' }
-    yield { type: 'text-delta', text: input.plan.assistantText }
+    yield { type: 'text-delta', text: input.plan.assistantText ?? '' }
     yield { type: 'text-end' }
   }
 
@@ -71,7 +73,8 @@ export async function* createStudioTurnExecutionStream(
       runSubagent: input.runSubagent,
       resolveSkill: input.resolveSkill,
       setToolMetadata: input.setToolMetadata,
-      customApiConfig: input.customApiConfig
+      customApiConfig: input.customApiConfig,
+      commentary: hasAssistantText ? null : undefined
     })
   }
 
@@ -84,3 +87,6 @@ function asToolInput(input: unknown): Record<string, unknown> {
   }
   return {}
 }
+
+
+

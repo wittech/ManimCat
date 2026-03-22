@@ -2,6 +2,7 @@ import { createLogger } from '../../utils/logger'
 import { createStudioToolPart } from '../domain/factories'
 import type {
   StudioAssistantMessage,
+  StudioEventBus,
   StudioMessageStore,
   StudioPartStore,
   StudioProcessorStreamEvent,
@@ -45,11 +46,13 @@ export class StudioRunProcessor {
     run: StudioRun
     assistantMessage: StudioAssistantMessage
     events: AsyncIterable<StudioProcessorStreamEvent>
+    eventBus?: StudioEventBus
     shouldCompact?: (usage?: { tokens?: number }, assistantMessage?: StudioAssistantMessage) => Promise<boolean>
     onDoomLoop?: (toolName: string, toolInput: Record<string, unknown>) => Promise<boolean>
   }): Promise<StudioProcessorOutcome> {
     const toolCalls = new Map<string, StudioToolPart>()
     let activeTextPartId: string | null = null
+    let activeTextValue = ''
     let activeReasoningPartId: string | null = null
     let blocked = false
     let needsCompaction = false
@@ -57,6 +60,14 @@ export class StudioRunProcessor {
     for await (const event of input.events) {
       switch (event.type) {
         case 'tool-input-start': {
+          input.eventBus?.publish({
+            type: 'tool_input_start',
+            sessionId: input.session.id,
+            runId: input.run.id,
+            toolName: event.toolName,
+            callId: event.id,
+            raw: event.raw
+          })
           const part = createStudioToolPart({
             messageId: input.assistantMessage.id,
             sessionId: input.assistantMessage.sessionId,
@@ -70,6 +81,14 @@ export class StudioRunProcessor {
         }
 
         case 'tool-call': {
+          input.eventBus?.publish({
+            type: 'tool_call',
+            sessionId: input.session.id,
+            runId: input.run.id,
+            toolName: event.toolName,
+            callId: event.toolCallId,
+            input: event.input
+          })
           const match = toolCalls.get(event.toolCallId)
           if (!match) {
             break
@@ -105,27 +124,61 @@ export class StudioRunProcessor {
         }
 
         case 'tool-result': {
+          input.eventBus?.publish({
+            type: 'tool_result',
+            sessionId: input.session.id,
+            runId: input.run.id,
+            toolName: toolCalls.get(event.toolCallId)?.tool ?? 'unknown',
+            callId: event.toolCallId,
+            status: 'completed',
+            title: event.title,
+            output: event.output,
+            metadata: event.metadata,
+            attachments: event.attachments
+          })
           await this.completeToolCall(toolCalls, event)
           break
         }
 
         case 'tool-error': {
+          input.eventBus?.publish({
+            type: 'tool_result',
+            sessionId: input.session.id,
+            runId: input.run.id,
+            toolName: toolCalls.get(event.toolCallId)?.tool ?? 'unknown',
+            callId: event.toolCallId,
+            status: 'failed',
+            error: event.error,
+            metadata: event.metadata
+          })
           blocked = await this.failToolCall(toolCalls, event)
           break
         }
 
         case 'text-start': {
+          activeTextValue = ''
           activeTextPartId = await this.textStream.startPart(input.assistantMessage, 'text')
           break
         }
 
         case 'text-delta': {
+          activeTextValue += event.text
           await this.textStream.appendDelta(activeTextPartId, event.text, 'text')
           break
         }
 
         case 'text-end': {
+          const text = activeTextValue.trim()
+          if (text) {
+            input.eventBus?.publish({
+              type: 'assistant_text',
+              sessionId: input.session.id,
+              runId: input.run.id,
+              text
+            })
+          }
           activeTextPartId = null
+          activeTextValue = ''
           break
         }
 
@@ -312,3 +365,4 @@ export class StudioRunProcessor {
     })
   }
 }
+

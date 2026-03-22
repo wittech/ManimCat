@@ -1,12 +1,14 @@
 import type {
   StudioAssistantMessage,
   StudioFileAttachment,
+  StudioSessionEventStore,
   StudioTaskStore,
   StudioWork,
   StudioWorkContext,
   StudioWorkResultStore,
   StudioWorkStore
 } from '../domain/types'
+import { listPendingSessionEvents } from './session-event-inbox'
 
 interface BuildStudioWorkContextInput {
   sessionId: string
@@ -15,59 +17,67 @@ interface BuildStudioWorkContextInput {
   workStore?: StudioWorkStore
   workResultStore?: StudioWorkResultStore
   taskStore?: StudioTaskStore
+  sessionEventStore?: StudioSessionEventStore
 }
 
 export async function buildStudioWorkContext(input: BuildStudioWorkContextInput): Promise<StudioWorkContext | undefined> {
-  if (!input.workStore) {
-    return undefined
+  const context: StudioWorkContext = {
+    sessionId: input.sessionId,
+    agent: input.agent
   }
 
-  const works = await input.workStore.listBySessionId(input.sessionId)
-  if (!works.length) {
-    return {
-      sessionId: input.sessionId,
-      agent: input.agent
+  if (input.workStore) {
+    const works = await input.workStore.listBySessionId(input.sessionId)
+    if (works.length) {
+      const currentWork = selectCurrentWork(works)
+      const lastRenderWork = [...works]
+        .filter((work) => work.type === 'video' || work.type === 'render-fix')
+        .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0]
+
+      context.currentWork = currentWork
+        ? {
+            id: currentWork.id,
+            type: currentWork.type,
+            status: mapWorkStatus(currentWork.status),
+            title: currentWork.title
+          }
+        : undefined
+
+      if (lastRenderWork && input.workResultStore) {
+        const results = await input.workResultStore.listByWorkId(lastRenderWork.id)
+        const lastResult = [...results].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0]
+        if (lastResult) {
+          context.lastRender = {
+            status: lastResult.kind === 'failure-report' ? 'failed' : 'success',
+            timestamp: Date.parse(lastResult.createdAt),
+            workId: lastRenderWork.id,
+            output: lastResult.kind === 'render-output'
+              ? {
+                  videoPath: findAttachment(lastResult.attachments, 'video/'),
+                  imagePaths: listAttachments(lastResult.attachments, 'image/')
+                }
+              : undefined,
+            error: lastResult.kind === 'failure-report'
+              ? typeof lastResult.metadata?.error === 'string'
+                ? lastResult.metadata.error
+                : lastResult.summary
+              : undefined
+          }
+        }
+      }
     }
   }
 
-  const currentWork = selectCurrentWork(works)
-  const lastRenderWork = [...works]
-    .filter((work) => work.type === 'video' || work.type === 'render-fix')
-    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0]
-
-  const context: StudioWorkContext = {
-    sessionId: input.sessionId,
-    agent: input.agent,
-    currentWork: currentWork
-      ? {
-          id: currentWork.id,
-          type: currentWork.type,
-          status: mapWorkStatus(currentWork.status),
-          title: currentWork.title
-        }
-      : undefined
-  }
-
-  if (lastRenderWork && input.workResultStore) {
-    const results = await input.workResultStore.listByWorkId(lastRenderWork.id)
-    const lastResult = [...results].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0]
-    if (lastResult) {
-      context.lastRender = {
-        status: lastResult.kind === 'failure-report' ? 'failed' : 'success',
-        timestamp: Date.parse(lastResult.createdAt),
-        workId: lastRenderWork.id,
-        output: lastResult.kind === 'render-output'
-          ? {
-              videoPath: findAttachment(lastResult.attachments, 'video/'),
-              imagePaths: listAttachments(lastResult.attachments, 'image/')
-            }
-          : undefined,
-        error: lastResult.kind === 'failure-report'
-          ? typeof lastResult.metadata?.error === 'string'
-            ? lastResult.metadata.error
-            : lastResult.summary
-          : undefined
-      }
+  if (input.sessionEventStore) {
+    const pendingEvents = await listPendingSessionEvents(input.sessionEventStore, input.sessionId)
+    if (pendingEvents.length) {
+      context.pendingEvents = pendingEvents.map((event) => ({
+        id: event.id,
+        kind: event.kind,
+        title: event.title,
+        summary: event.summary,
+        createdAt: event.createdAt
+      }))
     }
   }
 

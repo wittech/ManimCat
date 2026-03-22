@@ -2,6 +2,7 @@ import type {
   StudioEventBus,
   StudioMessageStore,
   StudioPartStore,
+  StudioSessionEventStore,
   StudioSessionStore,
   StudioTask,
   StudioTaskStore,
@@ -12,6 +13,7 @@ import type { StudioBlobStore } from '../storage/studio-blob-store'
 import { publishRenderFailureFeedback } from '../works/render-failure-feedback'
 import { syncRenderWorkFromTask } from '../works/render-work-sync'
 import { getBullJobStatus, getJobResult, getJobStage } from '../../services/job-store'
+import { syncRenderTaskSessionEvents } from './session-event-inbox'
 
 interface SyncStudioRenderTaskInput {
   task: StudioTask
@@ -19,6 +21,7 @@ interface SyncStudioRenderTaskInput {
   workStore: StudioWorkStore
   workResultStore: StudioWorkResultStore
   sessionStore: StudioSessionStore
+  sessionEventStore: StudioSessionEventStore
   messageStore: StudioMessageStore
   partStore: StudioPartStore
   eventBus: StudioEventBus
@@ -121,6 +124,12 @@ async function publishRenderSync(
     workResultStore: input.workResultStore,
     blobStore: input.blobStore
   }, task)
+
+  await syncRenderTaskSessionEvents({
+    task,
+    sessionEventStore: input.sessionEventStore,
+    eventBus: input.eventBus
+  })
 
   if (!synced) {
     return

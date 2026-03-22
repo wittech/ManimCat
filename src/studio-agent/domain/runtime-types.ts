@@ -39,6 +39,14 @@ export interface StudioWorkContextFileChange {
   status: 'added' | 'modified' | 'deleted'
 }
 
+export interface StudioWorkContextPendingEvent {
+  id: string
+  kind: 'render-status'
+  title: string
+  summary: string
+  createdAt: string
+}
+
 export interface StudioWorkContext {
   sessionId: string
   agent: string
@@ -46,6 +54,7 @@ export interface StudioWorkContext {
   lastRender?: StudioWorkContextLastRender
   lastStaticCheck?: StudioWorkContextLastStaticCheck
   fileChanges?: StudioWorkContextFileChange[]
+  pendingEvents?: StudioWorkContextPendingEvent[]
 }
 
 export interface StudioStreamToolInputStart {

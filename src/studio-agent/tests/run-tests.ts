@@ -7,17 +7,22 @@ import {
   buildStudioAgentSystemPrompt,
   buildStudioSubagentPrompt,
   buildReviewerStructuredReport,
+  createRenderStatusSessionEvent,
   createStudioSession,
   createStudioTask,
   createStudioWork,
   createLocalStudioSkillResolver,
   createPlaceholderStudioTools,
   createStudioDefaultTurnPlanResolver,
+  enqueueSessionEvent,
   extractStudioWorkflowInput,
+  flushTerminalSessionEventsToAssistant,
+  getStudioSessionAgentConfig,
   InMemoryStudioEventBus,
   InMemoryStudioMessageStore,
   InMemoryStudioPartStore,
   InMemoryStudioRunStore,
+  InMemoryStudioSessionEventStore,
   InMemoryStudioSessionStore,
   InMemoryStudioTaskStore,
   InMemoryStudioWorkResultStore,
@@ -27,10 +32,11 @@ import {
   StudioPermissionService,
   StudioToolRegistry,
   defaultRulesForLevel,
+  determineStudioAgentLoopAction,
   syncRenderWorkFromTask,
   type StudioAssistantMessage,
-  type StudioPermissionRequest,
   type StudioPermissionDecision,
+  type StudioPermissionRequest,
   type StudioRuntimeBackedToolContext,
   type StudioTurnPlanResolver
 } from '../index'
@@ -41,6 +47,7 @@ function createTestRuntime(options?: {
   permissionService?: StudioPermissionService
   askForConfirmation?: (request: StudioPermissionRequest) => Promise<StudioPermissionDecision>
   resolveTurnPlan?: StudioTurnPlanResolver
+  eventBus?: InMemoryStudioEventBus
 }) {
   const registry = new StudioToolRegistry()
   for (const tool of createPlaceholderStudioTools()) {
@@ -52,6 +59,7 @@ function createTestRuntime(options?: {
   const runStore = new InMemoryStudioRunStore()
   const sessionStore = new InMemoryStudioSessionStore()
   const taskStore = new InMemoryStudioTaskStore()
+  const sessionEventStore = new InMemoryStudioSessionEventStore()
   const workStore = new InMemoryStudioWorkStore()
   const workResultStore = new InMemoryStudioWorkResultStore()
   const resolveSkill = createLocalStudioSkillResolver()
@@ -63,13 +71,15 @@ function createTestRuntime(options?: {
     partStore,
     runStore,
     sessionStore,
+    sessionEventStore,
     taskStore,
     workStore,
     workResultStore,
     resolveSkill,
     resolveTurnPlan,
     permissionService: options?.permissionService,
-    askForConfirmation: options?.askForConfirmation
+    askForConfirmation: options?.askForConfirmation,
+    eventBus: options?.eventBus
   })
 
   return {
@@ -79,6 +89,7 @@ function createTestRuntime(options?: {
     partStore,
     runStore,
     sessionStore,
+    sessionEventStore,
     taskStore,
     workStore,
     workResultStore,
@@ -125,8 +136,8 @@ async function main() {
     assert.equal(isStudioPermissionDecision('reject'), true)
     assert.equal(isStudioPermissionDecision('maybe'), false)
   })
-  await run('default studio workspace uses current working directory', async () => {
-    assert.equal(getDefaultStudioWorkspacePath(), process.cwd())
+  await run('default studio workspace uses dedicated hidden directory', async () => {
+    assert.equal(getDefaultStudioWorkspacePath(), path.join(process.cwd(), '.studio-workspace'))
   })
 
   await run('builder prompt requires code, checks, and confirmation before render', async () => {
@@ -147,6 +158,124 @@ async function main() {
     assert.match(prompt, /Do not call render until the target code has been written or updated in the workspace and checked with static-check/)
     assert.match(prompt, /use the question tool to ask for confirmation first/)
   })
+  await run('loop policy finishes when the assistant stops calling tools', async () => {
+    const decision = determineStudioAgentLoopAction({
+      finishReason: 'stop',
+      toolCallCount: 0,
+      step: 0,
+      maxSteps: 8
+    })
+
+    assert.deepEqual(decision, { type: 'finish' })
+  })
+
+  await run('loop policy continues when tool calls are returned with budget left', async () => {
+    const decision = determineStudioAgentLoopAction({
+      finishReason: 'tool_calls',
+      toolCallCount: 2,
+      step: 2,
+      maxSteps: 8
+    })
+
+    assert.deepEqual(decision, { type: 'continue' })
+  })
+
+  await run('loop policy aborts when tool calls would exceed the safety step limit', async () => {
+    const decision = determineStudioAgentLoopAction({
+      finishReason: 'tool_calls',
+      toolCallCount: 1,
+      step: 7,
+      maxSteps: 8
+    })
+
+    assert.deepEqual(decision, {
+      type: 'abort',
+      message: 'Stopped after reaching the Studio agent step limit (8).'
+    })
+  })
+
+  await run('loop policy surfaces provider stop reasons without leaking loop internals', async () => {
+    const decision = determineStudioAgentLoopAction({
+      finishReason: 'length',
+      toolCallCount: 0,
+      step: 0,
+      maxSteps: 8
+    })
+
+    assert.deepEqual(decision, {
+      type: 'abort',
+      message: 'Studio agent response hit the model output limit before finishing.'
+    })
+  })
+
+  await run('terminal session events flush into assistant updates', async () => {
+    const sessionId = 'sess_terminal_event'
+    const messageStore = new InMemoryStudioMessageStore()
+    const partStore = new InMemoryStudioPartStore()
+    const sessionEventStore = new InMemoryStudioSessionEventStore()
+
+    await enqueueSessionEvent({
+      store: sessionEventStore,
+      eventBus: new InMemoryStudioEventBus(),
+      event: createRenderStatusSessionEvent({
+        task: createStudioTask({
+          sessionId,
+          runId: 'run_terminal_event',
+          type: 'render',
+          status: 'completed',
+          title: 'Render parabola',
+          metadata: {
+            jobId: 'job_terminal_event',
+            result: {
+              status: 'completed',
+              data: {
+                outputMode: 'video',
+                videoUrl: '/tmp/parabola.mp4'
+              },
+              timestamp: Date.now()
+            }
+          }
+        }),
+        status: 'completed',
+        summary: 'Render completed: Render parabola (output: /tmp/parabola.mp4, render_job_id: job_terminal_event)'
+      })
+    })
+
+    const flushed = await flushTerminalSessionEventsToAssistant({
+      sessionId,
+      sessionEventStore,
+      messageStore,
+      partStore
+    })
+
+    const messages = await messageStore.listBySessionId(sessionId)
+    const events = await sessionEventStore.listBySessionId(sessionId)
+    const assistant = messages.find((message): message is StudioAssistantMessage => message.role === 'assistant')
+
+    assert.equal(flushed.length, 1)
+    assert.ok(assistant)
+    assert.match(assistant?.parts[0] && assistant.parts[0].type === 'text' ? assistant.parts[0].text : '', /System Update/)
+    assert.equal(events[0]?.status, 'consumed')
+  })
+
+  await run('session agent config reads tool choice from metadata', async () => {
+    const session = createStudioSession({
+      projectId: 'project-1',
+      agentType: 'builder',
+      title: 'Config Session',
+      directory: await createWorkspace(),
+      permissionLevel: 'L4',
+      permissionRules: defaultRulesForLevel('L4'),
+      metadata: {
+        agentConfig: {
+          toolChoice: 'required'
+        }
+      }
+    })
+
+    assert.deepEqual(getStudioSessionAgentConfig(session), { toolChoice: 'required' })
+  })
+
   await run('turn intent maps list requests to ls at workspace root', async () => {
     const intent = parseStudioTurnIntent('please list the current workspace')
 
@@ -271,6 +400,48 @@ async function main() {
     assert.match(plan.assistantText ?? '', /最近一次 render 结果失败/)
   })
 
+  await run('runtime emits commentary before tool events when plan text is absent', async () => {
+    const eventBus = new InMemoryStudioEventBus()
+    const workspace = await createWorkspace()
+    const { runtime, sessionStore } = createTestRuntime({
+      eventBus,
+      resolveTurnPlan: async () => ({
+        toolCalls: [
+          {
+            toolName: 'ls',
+            callId: 'call_ls_commentary',
+            input: { path: 'src' }
+          }
+        ]
+      })
+    })
+
+    const session = await sessionStore.create(createStudioSession({
+      projectId: 'project-1',
+      agentType: 'builder',
+      title: 'Commentary Session',
+      directory: workspace,
+      permissionLevel: 'L4',
+      permissionRules: defaultRulesForLevel('L4')
+    }))
+
+    const result = await runtime.run({
+      projectId: 'project-1',
+      session,
+      inputText: '看看 src 目录'
+    })
+
+    const eventTypes = eventBus.list().map((event) => event.type)
+    const assistantTextEvent = eventBus.list().find((event) => event.type === 'assistant_text')
+    const toolStartIndex = eventTypes.indexOf('tool_input_start')
+    const assistantTextIndex = eventTypes.indexOf('assistant_text')
+
+    assert.ok(assistantTextEvent && assistantTextEvent.type === 'assistant_text')
+    assert.match(assistantTextEvent && assistantTextEvent.type === 'assistant_text' ? assistantTextEvent.text : '', /我先看一下 src 的目录结构/)
+    assert.ok(assistantTextIndex >= 0)
+    assert.ok(toolStartIndex >= 0)
+    assert.ok(assistantTextIndex < toolStartIndex)
+  })
   await run('resolver does not auto-call render for plain render requests', async () => {
     const { registry } = createTestRuntime()
     const resolveTurnPlan = createStudioDefaultTurnPlanResolver({
@@ -735,6 +906,10 @@ main()
     console.error(error)
     process.exit(1)
   })
+
+
+
+
 
 
 
