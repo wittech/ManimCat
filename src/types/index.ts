@@ -210,6 +210,7 @@ export interface GenerateResponse {
   jobId: string
   message: string
   status: 'processing'
+  submittedAt: string
 }
 
 /**
@@ -220,6 +221,7 @@ export interface JobStatusProcessingResponse {
   jobId: string
   stage: ProcessingStage
   message: string
+  submitted_at?: string
 }
 
 /**
@@ -230,6 +232,8 @@ export interface JobStatusCompletedResponse {
   status: 'completed'
   jobId: string
   success: true
+  submitted_at?: string
+  finished_at?: string
   output_mode: OutputMode
   video_url?: string | null
   image_urls?: string[]
@@ -250,6 +254,8 @@ export interface JobStatusFailedResponse {
   status: 'failed'
   jobId: string
   success: false
+  submitted_at?: string
+  finished_at?: string
   error: string
   details?: string
   cancel_reason?: string

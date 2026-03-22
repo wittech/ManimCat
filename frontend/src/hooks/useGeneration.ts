@@ -3,7 +3,7 @@ import { generateAnimation, getJobStatus, cancelJob, modifyAnimation } from '../
 import { loadSettings } from '../lib/settings';
 import { getActiveProvider, providerToCustomApiConfig } from '../lib/ai-providers';
 import { loadPrompts } from './usePrompts';
-import type { GenerateRequest, JobResult, ProcessingStage, ModifyRequest } from '../types/api';
+import type { GenerateRequest, GenerateResponse, JobResult, ProcessingStage, ModifyRequest } from '../types/api';
 import { useI18n } from '../i18n';
 import { localizeApiMessage } from '../i18n/runtime';
 
@@ -15,6 +15,7 @@ interface UseGenerationReturn {
   error: string | null;
   jobId: string | null;
   stage: ProcessingStage;
+  submittedAt: string | null;
   generate: (request: GenerateRequest) => Promise<void>;
   renderWithCode: (request: GenerateRequest & { code: string }) => Promise<void>;
   modifyWithAI: (request: ModifyRequest) => Promise<void>;
@@ -26,6 +27,7 @@ interface UseGenerationReturn {
 interface PersistedActiveJob {
   jobId: string;
   stage: ProcessingStage;
+  submittedAt: string | null;
 }
 
 const POLL_INTERVAL = 1000;
@@ -55,6 +57,7 @@ function readPersistedActiveJob(): PersistedActiveJob | null {
     return {
       jobId: parsed.jobId,
       stage: parsed.stage || 'analyzing',
+      submittedAt: typeof parsed.submittedAt === 'string' ? parsed.submittedAt : null,
     };
   } catch {
     return null;
@@ -68,6 +71,7 @@ export function useGeneration(): UseGenerationReturn {
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [stage, setStage] = useState<ProcessingStage>('analyzing');
+  const [submittedAt, setSubmittedAt] = useState<string | null>(null);
 
   const pollCountRef = useRef(0);
   const pollIntervalRef = useRef<number | null>(null);
@@ -81,10 +85,11 @@ export function useGeneration(): UseGenerationReturn {
     }
   }, []);
 
-  const persistActiveJob = useCallback((nextJobId: string, nextStage: ProcessingStage) => {
+  const persistActiveJob = useCallback((nextJobId: string, nextStage: ProcessingStage, nextSubmittedAt: string | null) => {
     sessionStorage.setItem(ACTIVE_JOB_STORAGE_KEY, JSON.stringify({
       jobId: nextJobId,
       stage: nextStage,
+      submittedAt: nextSubmittedAt,
     }));
   }, []);
 
@@ -108,12 +113,13 @@ export function useGeneration(): UseGenerationReturn {
     return 'still-rendering';
   }, []);
 
-  const syncTransientStage = useCallback((nextJobId: string, nextStage: ProcessingStage) => {
+  const syncTransientStage = useCallback((nextJobId: string, nextStage: ProcessingStage, nextSubmittedAt: string | null) => {
     setStage(nextStage);
-    persistActiveJob(nextJobId, nextStage);
+    setSubmittedAt(nextSubmittedAt);
+    persistActiveJob(nextJobId, nextStage, nextSubmittedAt);
   }, [persistActiveJob]);
 
-  const startPolling = useCallback((nextJobId: string, initialStage: ProcessingStage) => {
+  const startPolling = useCallback((nextJobId: string, initialStage: ProcessingStage, initialSubmittedAt: string | null) => {
     clearPolling();
     pollCountRef.current = 0;
     transientPollErrorCountRef.current = 0;
@@ -121,7 +127,7 @@ export function useGeneration(): UseGenerationReturn {
     setStatus('processing');
     setError(null);
     setResult(null);
-    syncTransientStage(nextJobId, initialStage);
+    syncTransientStage(nextJobId, initialStage, initialSubmittedAt);
 
     pollIntervalRef.current = window.setInterval(async () => {
       pollCountRef.current += 1;
@@ -135,6 +141,7 @@ export function useGeneration(): UseGenerationReturn {
           clearActiveJob();
           setStatus('completed');
           setResult(data);
+          setSubmittedAt(data.submitted_at ?? initialSubmittedAt);
           return;
         }
 
@@ -142,6 +149,7 @@ export function useGeneration(): UseGenerationReturn {
           clearPolling();
           clearActiveJob();
           setStatus('error');
+          setSubmittedAt(data.submitted_at ?? initialSubmittedAt);
           if (data.cancel_reason) {
             setError(t('generation.cancelled', { reason: data.cancel_reason }));
           } else {
@@ -151,7 +159,8 @@ export function useGeneration(): UseGenerationReturn {
         }
 
         const nextStage = data.stage || updateStage(pollCountRef.current);
-        syncTransientStage(nextJobId, nextStage);
+        const nextSubmittedAt = data.submitted_at ?? initialSubmittedAt;
+        syncTransientStage(nextJobId, nextStage, nextSubmittedAt);
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
           return;
@@ -182,12 +191,14 @@ export function useGeneration(): UseGenerationReturn {
           clearPolling();
           clearActiveJob();
           setStatus('error');
+          setSubmittedAt(null);
           setError(t('generation.jobExpired'));
           return;
         }
 
         clearPolling();
         setStatus('error');
+        setSubmittedAt(null);
         setError(err instanceof Error ? localizeApiMessage(err.message) : t('api.jobStatusFailed'));
       }
     }, POLL_INTERVAL);
@@ -197,7 +208,7 @@ export function useGeneration(): UseGenerationReturn {
     abortControllerRef.current = new AbortController();
     const persisted = readPersistedActiveJob();
     if (persisted) {
-      startPolling(persisted.jobId, persisted.stage);
+      startPolling(persisted.jobId, persisted.stage, persisted.submittedAt);
     }
 
     return () => {
@@ -208,7 +219,7 @@ export function useGeneration(): UseGenerationReturn {
 
   const submitGeneration = useCallback(async (
     request: GenerateRequest | ModifyRequest,
-    executor: (payload: GenerateRequest | ModifyRequest, signal: AbortSignal) => Promise<{ jobId: string }>,
+    executor: (payload: GenerateRequest | ModifyRequest, signal: AbortSignal) => Promise<GenerateResponse>,
     initialStage: ProcessingStage,
     fallbackMessage: string,
   ) => {
@@ -233,13 +244,14 @@ export function useGeneration(): UseGenerationReturn {
         { ...request, promptOverrides, customApiConfig },
         abortControllerRef.current.signal,
       );
-      startPolling(response.jobId, initialStage);
+      startPolling(response.jobId, initialStage, response.submittedAt ?? null);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         return;
       }
       clearActiveJob();
       setStatus('error');
+      setSubmittedAt(null);
       setError(err instanceof Error ? err.message : fallbackMessage);
     }
   }, [clearActiveJob, locale, startPolling, t]);
@@ -280,6 +292,7 @@ export function useGeneration(): UseGenerationReturn {
     setResult(null);
     setJobId(null);
     setStage('analyzing');
+    setSubmittedAt(null);
   }, [clearActiveJob, clearPolling]);
 
   const runCancel = useCallback((resetAfterCancel: boolean) => {
@@ -303,6 +316,7 @@ export function useGeneration(): UseGenerationReturn {
         setResult(null);
         setJobId(null);
         setStage('analyzing');
+        setSubmittedAt(null);
         if (resetAfterCancel) {
           setStatus('idle');
           setError(null);
@@ -312,10 +326,10 @@ export function useGeneration(): UseGenerationReturn {
         }
       } catch (err) {
         console.warn(t('generation.cancelFailed'), err);
-        startPolling(jobId, stage);
+        startPolling(jobId, stage, submittedAt);
       }
     })();
-  }, [clearActiveJob, clearPolling, jobId, reset, stage, startPolling, t]);
+  }, [clearActiveJob, clearPolling, jobId, reset, stage, startPolling, submittedAt, t]);
 
   const cancel = useCallback(() => {
     runCancel(false);
@@ -331,6 +345,7 @@ export function useGeneration(): UseGenerationReturn {
     error,
     jobId,
     stage,
+    submittedAt,
     generate,
     renderWithCode,
     modifyWithAI,

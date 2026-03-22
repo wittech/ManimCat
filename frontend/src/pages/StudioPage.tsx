@@ -21,6 +21,7 @@ interface StudioPageProps {
   error: string | null;
   jobId: string | null;
   stage: ProcessingStage;
+  submittedAt: string | null;
   concept: string;
   currentCode: string;
   isBusy: boolean;
@@ -56,6 +57,7 @@ export function StudioPage({
   error,
   jobId,
   stage,
+  submittedAt,
   concept,
   currentCode,
   isBusy,
@@ -113,6 +115,7 @@ export function StudioPage({
             error={error}
             jobId={jobId}
             stage={stage}
+            submittedAt={submittedAt}
             concept={concept}
             onConceptChange={onConceptChange}
             onSecretStudioOpen={onSecretStudioOpen}
@@ -132,7 +135,13 @@ export function StudioPage({
         </div>
       </div>
 
-      {status === 'completed' && result?.timings && <TimingPanel timings={result.timings} />}
+      {status === 'completed' && (
+        <TimingPanel
+          timings={result?.timings}
+          submittedAt={result?.submitted_at ?? submittedAt}
+          finishedAt={result?.finished_at ?? null}
+        />
+      )}
 
       <ProblemFramingOverlay
         open={problemOpen}

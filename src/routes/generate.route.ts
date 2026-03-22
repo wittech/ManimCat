@@ -74,6 +74,7 @@ async function handleGenerateRequest(req: express.Request, res: express.Response
   const queuedConcept = mergeProblemPlanIntoConcept(sanitizedConcept, problemPlan)
   const sanitizedReferenceImages = sanitizeReferenceImages(referenceImages)
   const clientId = getRequestClientId(req)
+  const submittedAt = new Date().toISOString()
 
   if (sanitizedConcept.length === 0) {
     throw new ValidationError('提供的概念为空', { concept })
@@ -121,7 +122,7 @@ async function handleGenerateRequest(req: express.Request, res: express.Response
       promptOverrides,
       videoConfig,
       clientId,
-      timestamp: new Date().toISOString()
+      timestamp: submittedAt
     },
     {
       jobId,
@@ -145,7 +146,8 @@ async function handleGenerateRequest(req: express.Request, res: express.Response
     success: true,
     jobId,
     message: code ? '渲染已开始' : '生成已开始',
-    status: 'processing'
+    status: 'processing',
+    submittedAt
   }
 
   res.status(202).json(response)

@@ -10,10 +10,12 @@ function formatDuration(ms: number): string {
 }
 
 interface TimingPanelProps {
-  timings: JobTimings;
+  timings?: JobTimings;
+  submittedAt?: string | null;
+  finishedAt?: string | null;
 }
 
-export function TimingPanel({ timings }: TimingPanelProps) {
+export function TimingPanel({ timings, submittedAt, finishedAt }: TimingPanelProps) {
   const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -27,17 +29,24 @@ export function TimingPanel({ timings }: TimingPanelProps) {
     ];
 
     const items = timingLabels
-      .map(({ key, label }) => ({ key, label, value: timings[key] }))
+      .map(({ key, label }) => ({ key, label, value: timings?.[key] }))
       .filter((item) => typeof item.value === 'number');
 
-    const total = typeof timings.total === 'number'
-      ? timings.total
-      : items.reduce((sum, item) => sum + (item.value || 0), 0);
+    const submittedMs = submittedAt ? Date.parse(submittedAt) : Number.NaN;
+    const finishedMs = finishedAt ? Date.parse(finishedAt) : Number.NaN;
+    const endToEndTotal = Number.isFinite(submittedMs) && Number.isFinite(finishedMs)
+      ? Math.max(0, finishedMs - submittedMs)
+      : undefined;
+    const total = typeof endToEndTotal === 'number'
+      ? endToEndTotal
+      : typeof timings?.total === 'number'
+        ? timings.total
+        : items.reduce((sum, item) => sum + (item.value || 0), 0);
 
     return { total, items };
-  }, [t, timings]);
+  }, [finishedAt, submittedAt, t, timings]);
 
-  if (!items.length) {
+  if (!items.length && !Number.isFinite(total)) {
     return null;
   }
 

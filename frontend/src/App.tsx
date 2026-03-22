@@ -21,7 +21,7 @@ const STUDIO_TRANSITION_MS = 2000;
 const STUDIO_EXIT_DELAY_MS = 800;
 
 function App() {
-  const { status, result, error, jobId, stage, generate, renderWithCode, modifyWithAI, reset, cancel, cancelAndReset } = useGeneration();
+  const { status, result, error, jobId, stage, submittedAt, generate, renderWithCode, modifyWithAI, reset, cancel, cancelAndReset } = useGeneration();
   const problemFraming = useProblemFraming();
   const game = useGame2048();
   useTabTitle(status, stage);
@@ -223,6 +223,7 @@ function App() {
             error={error}
             jobId={jobId}
             stage={stage}
+            submittedAt={submittedAt}
             concept={concept}
             currentCode={currentCode || result?.code || ''}
             isBusy={isBusy}

@@ -79,6 +79,7 @@ async function handleModifyRequest(req: express.Request, res: express.Response) 
     throw new ValidationError('修改意见不能为空', { instructions })
   }
   const clientId = getRequestClientId(req)
+  const submittedAt = new Date().toISOString()
 
   const jobId = uuidv4()
 
@@ -107,7 +108,7 @@ async function handleModifyRequest(req: express.Request, res: express.Response) 
       promptOverrides,
       videoConfig,
       clientId,
-      timestamp: new Date().toISOString()
+      timestamp: submittedAt
     },
     {
       jobId,
@@ -129,7 +130,8 @@ async function handleModifyRequest(req: express.Request, res: express.Response) 
     success: true,
     jobId,
     message: 'AI 修改已开始',
-    status: 'processing'
+    status: 'processing',
+    submittedAt
   }
 
   res.status(202).json(response)

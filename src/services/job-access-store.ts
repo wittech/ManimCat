@@ -68,3 +68,20 @@ export async function assertJobAccess(input: AssertJobAccessInput): Promise<void
     throw new ForbiddenError('当前任务不属于这个浏览器客户端')
   }
 }
+
+export async function getJobAccessCreatedAt(jobId: string): Promise<number | null> {
+  const key = generateRedisKey(JOB_ACCESS_KEY_PREFIX, jobId)
+  const raw = await redisClient.get(key)
+  if (!raw) {
+    return null
+  }
+
+  try {
+    const record = JSON.parse(raw) as StoredJobAccessRecord
+    return typeof record.createdAt === 'number' && Number.isFinite(record.createdAt)
+      ? record.createdAt
+      : null
+  } catch {
+    return null
+  }
+}

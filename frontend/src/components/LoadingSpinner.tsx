@@ -8,6 +8,7 @@ type Stage = 'analyzing' | 'generating' | 'refining' | 'rendering' | 'still-rend
 interface LoadingSpinnerProps {
   stage: Stage;
   jobId?: string;
+  submittedAt?: string;
   onCancel?: () => void;
   onOpenGame?: () => void;
 }
@@ -159,11 +160,33 @@ function WavingPaw({ index, total }: { index: number; total: number }) {
   );
 }
 
-export function LoadingSpinner({ stage, jobId, onCancel, onOpenGame }: LoadingSpinnerProps) {
+export function LoadingSpinner({ stage, jobId, submittedAt, onCancel, onOpenGame }: LoadingSpinnerProps) {
   const { t } = useI18n();
   const progress = usePerceivedProgress(stage);
   const { key } = STAGE_CONFIG[stage];
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+  const [elapsedMs, setElapsedMs] = useState(0);
+
+  useEffect(() => {
+    if (!submittedAt) {
+      setElapsedMs(0);
+      return;
+    }
+
+    const submittedTime = Date.parse(submittedAt);
+    if (!Number.isFinite(submittedTime)) {
+      setElapsedMs(0);
+      return;
+    }
+
+    const updateElapsed = () => {
+      setElapsedMs(Math.max(0, Date.now() - submittedTime));
+    };
+
+    updateElapsed();
+    const timer = window.setInterval(updateElapsed, 250);
+    return () => window.clearInterval(timer);
+  }, [submittedAt]);
 
   return (
     <div className="flex flex-col items-center justify-center py-6">
@@ -191,6 +214,11 @@ export function LoadingSpinner({ stage, jobId, onCancel, onOpenGame }: LoadingSp
       <div className="mt-4 text-center">
         <p className="text-base text-text-primary/80">{t(key)}</p>
         <p className="text-sm text-text-secondary/60 tabular-nums mt-1">{Math.round(progress)}%</p>
+        {elapsedMs > 0 && (
+          <p className="text-xs text-text-secondary/50 tabular-nums mt-1">
+            {formatElapsed(elapsedMs)}
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-3 mt-3">
@@ -217,4 +245,11 @@ export function LoadingSpinner({ stage, jobId, onCancel, onOpenGame }: LoadingSp
       ) : null}
     </div>
   );
+}
+
+function formatElapsed(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }

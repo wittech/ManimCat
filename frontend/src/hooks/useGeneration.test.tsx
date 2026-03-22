@@ -47,12 +47,14 @@ describe('useGeneration', () => {
       jobId: 'job-1',
       message: 'ok',
       status: 'processing',
+      submittedAt: '2026-03-22T00:00:00.000Z',
     })
     mockedModifyAnimation.mockResolvedValue({
       success: true,
       jobId: 'job-1',
       message: 'ok',
       status: 'processing',
+      submittedAt: '2026-03-22T00:00:00.000Z',
     })
     mockedCancelJob.mockResolvedValue()
     mockedGetJobStatus.mockResolvedValue({
@@ -60,6 +62,7 @@ describe('useGeneration', () => {
       status: 'processing',
       stage: 'analyzing',
       message: 'running',
+      submitted_at: '2026-03-22T00:00:00.000Z',
     })
   })
 
@@ -89,12 +92,14 @@ describe('useGeneration', () => {
     sessionStorage.setItem('manimcat_active_job', JSON.stringify({
       jobId: 'job-restore',
       stage: 'rendering',
+      submittedAt: '2026-03-22T00:00:00.000Z',
     }))
     mockedGetJobStatus.mockResolvedValueOnce({
       jobId: 'job-restore',
       status: 'processing',
       stage: 'rendering',
       message: 'running',
+      submitted_at: '2026-03-22T00:00:00.000Z',
     })
 
     const { result } = renderHook(() => useGeneration(), { wrapper })
@@ -105,6 +110,7 @@ describe('useGeneration', () => {
 
     expect(result.current.jobId).toBe('job-restore')
     expect(result.current.status).toBe('processing')
+    expect(result.current.submittedAt).toBe('2026-03-22T00:00:00.000Z')
   })
 
   it('resumes polling if cancel request fails', async () => {
@@ -124,5 +130,17 @@ describe('useGeneration', () => {
 
     expect(result.current.status).toBe('processing')
     expect(result.current.jobId).toBe('job-1')
+    expect(result.current.submittedAt).toBe('2026-03-22T00:00:00.000Z')
+  })
+
+  it('persists submittedAt from the backend response for resumed timing', async () => {
+    const { result } = renderHook(() => useGeneration(), { wrapper })
+
+    await act(async () => {
+      await result.current.generate({ concept: 'test', outputMode: 'video' })
+    })
+
+    expect(result.current.submittedAt).toBe('2026-03-22T00:00:00.000Z')
+    expect(sessionStorage.getItem('manimcat_active_job')).toContain('"submittedAt":"2026-03-22T00:00:00.000Z"')
   })
 })

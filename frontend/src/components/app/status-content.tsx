@@ -17,6 +17,7 @@ interface StatusContentProps {
   error: string | null;
   jobId: string | null;
   stage: ProcessingStage;
+  submittedAt: string | null;
   concept: string;
   onConceptChange: (value: string) => void;
   onSecretStudioOpen?: () => void;
@@ -54,6 +55,7 @@ export function StatusContent({
   error,
   jobId,
   stage,
+  submittedAt,
   concept,
   onConceptChange,
   onSecretStudioOpen,
@@ -87,7 +89,13 @@ export function StatusContent({
   if (status === 'processing' || status === 'cancelling') {
     return (
       <div className="animate-fade-in-soft bg-bg-secondary/20 rounded-2xl p-8">
-        <LoadingSpinner stage={stage} jobId={jobId || undefined} onCancel={onCancel} onOpenGame={onOpenGame} />
+        <LoadingSpinner
+          stage={stage}
+          jobId={jobId || undefined}
+          submittedAt={submittedAt || undefined}
+          onCancel={onCancel}
+          onOpenGame={onOpenGame}
+        />
       </div>
     );
   }

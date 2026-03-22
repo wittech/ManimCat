@@ -156,6 +156,7 @@ export interface GenerateResponse {
   jobId: string;
   message: string;
   status: JobStatus;
+  submittedAt: string;
 }
 
 /** 任务结果 */
@@ -165,6 +166,8 @@ export interface JobResult {
   stage?: ProcessingStage;
   message?: string;
   success?: boolean;
+  submitted_at?: string;
+  finished_at?: string;
   output_mode?: OutputMode;
   video_url?: string | null;
   image_urls?: string[];
