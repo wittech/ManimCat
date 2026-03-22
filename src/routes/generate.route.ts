@@ -106,7 +106,11 @@ async function handleGenerateRequest(req: express.Request, res: express.Response
   })
 
   // 设置初始阶段
-  await storeJobStage(jobId, code ? 'rendering' : 'analyzing')
+  await storeJobStage(jobId, code ? 'rendering' : 'analyzing', {
+    status: 'queued',
+    attempt: 1,
+    submittedAt
+  })
 
   // 添加任务到 Bull 队列
   await videoQueue.add(

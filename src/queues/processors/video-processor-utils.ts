@@ -18,7 +18,15 @@ export function getRetryMeta(job: any): {
   }
 }
 
-export async function storeProcessingStage(jobId: string, stage: ProcessingStage): Promise<void> {
+export async function storeProcessingStage(
+  jobId: string,
+  stage: ProcessingStage,
+  options?: {
+    status?: 'queued' | 'processing'
+    attempt?: number
+    submittedAt?: string
+  }
+): Promise<void> {
   const { storeJobStage } = await import('../../services/job-store')
-  await storeJobStage(jobId, stage)
+  await storeJobStage(jobId, stage, options)
 }

@@ -222,6 +222,9 @@ export interface JobStatusProcessingResponse {
   stage: ProcessingStage
   message: string
   submitted_at?: string
+  updated_at?: string
+  revision: number
+  attempt: number
 }
 
 /**
@@ -234,6 +237,9 @@ export interface JobStatusCompletedResponse {
   success: true
   submitted_at?: string
   finished_at?: string
+  updated_at?: string
+  revision: number
+  attempt: number
   output_mode: OutputMode
   video_url?: string | null
   image_urls?: string[]
@@ -256,6 +262,9 @@ export interface JobStatusFailedResponse {
   success: false
   submitted_at?: string
   finished_at?: string
+  updated_at?: string
+  revision: number
+  attempt: number
   error: string
   details?: string
   cancel_reason?: string

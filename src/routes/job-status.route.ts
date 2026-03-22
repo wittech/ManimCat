@@ -14,7 +14,7 @@ import { asyncHandler } from '../middlewares/error-handler'
 import { authMiddleware } from '../middlewares/auth.middleware'
 import { assertJobAccess, getJobAccessCreatedAt } from '../services/job-access-store'
 import { createLogger } from '../utils/logger'
-import { getJobResult, getBullJobStatus, getJobStage } from '../services/job-store'
+import { getJobResult, getBullJobStatus, getJobStage, getJobTrackingState } from '../services/job-store'
 import { getRequestClientId } from '../utils/request-client-id'
 
 const router = express.Router()
@@ -45,10 +45,13 @@ router.get(
       apiKey: res.locals.manimcatApiKey as string,
       clientId: getRequestClientId(req),
     })
+    const tracking = await getJobTrackingState(jobId)
     const accessCreatedAt = await getJobAccessCreatedAt(jobId)
-    const submittedAt = typeof accessCreatedAt === 'number'
-      ? new Date(accessCreatedAt).toISOString()
-      : undefined
+    const submittedAt = tracking?.submittedAt
+      ?? (typeof accessCreatedAt === 'number' ? new Date(accessCreatedAt).toISOString() : undefined)
+    const revision = tracking?.revision ?? 0
+    const attempt = tracking?.attempt ?? 1
+    const updatedAt = tracking?.updatedAt
 
     // 首先从 Bull 队列检查任务状态
     const bullJobStatus = await getBullJobStatus(jobId)
@@ -66,6 +69,9 @@ router.get(
         stage: stage || 'analyzing',
         message: '正在生成内容...',
         submitted_at: submittedAt,
+        updated_at: updatedAt,
+        revision,
+        attempt,
       })
     }
 
@@ -84,6 +90,9 @@ router.get(
           message: '任务已失效（后端服务可能已重启），请重新提交生成请求',
           submitted_at: submittedAt,
           finished_at: new Date().toISOString(),
+          updated_at: updatedAt,
+          revision,
+          attempt,
         })
       }
       // 任务还在处理中
@@ -93,6 +102,9 @@ router.get(
         status: 'processing' as const,
         message: '正在生成内容...',
         submitted_at: submittedAt,
+        updated_at: updatedAt,
+        revision,
+        attempt,
       })
     }
 
@@ -104,6 +116,9 @@ router.get(
           success: true as const,
           submitted_at: submittedAt,
           finished_at: new Date(result.timestamp).toISOString(),
+          updated_at: updatedAt,
+          revision,
+          attempt,
           output_mode: result.data.outputMode || 'video',
           video_url: result.data.videoUrl ?? null,
           image_urls: result.data.imageUrls,
@@ -127,6 +142,9 @@ router.get(
       success: false as const,
       submitted_at: submittedAt,
       finished_at: new Date(result.timestamp).toISOString(),
+      updated_at: updatedAt,
+      revision,
+      attempt,
       error: result.data.error,
       details: result.data.details,
       cancel_reason: result.data.cancelReason

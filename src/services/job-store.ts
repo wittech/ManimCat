@@ -20,8 +20,18 @@ const logger = createLogger('JobStore')
 const JOB_RESULTS_GROUP = 'job-results'
 const JOB_RESULT_KEY_PREFIX = `${REDIS_KEYS.JOB_RESULT}`
 const JOB_STAGE_KEY_PREFIX = `${REDIS_KEYS.JOB_RESULT}:stage`
+const JOB_TRACKING_KEY_PREFIX = `${REDIS_KEYS.JOB_RESULT}:tracking`
 const DEFAULT_JOB_RESULT_RETENTION_HOURS = 24
 type StorableJobResult = Pick<CompletedJobResult, 'status' | 'data'> | Pick<FailedJobResult, 'status' | 'data'>
+
+export interface JobTrackingState {
+  revision: number
+  updatedAt: string
+  submittedAt: string | null
+  attempt: number
+  status: 'queued' | 'processing' | 'completed' | 'failed'
+  stage: ProcessingStage | null
+}
 
 function parsePositiveInteger(input: string | undefined, fallback: number): number {
   const value = Number(input)
@@ -37,6 +47,47 @@ function getJobResultRetentionSeconds(): number {
     DEFAULT_JOB_RESULT_RETENTION_HOURS
   )
   return retentionHours * 60 * 60
+}
+
+function getJobTrackingKey(jobId: string): string {
+  return generateRedisKey(JOB_TRACKING_KEY_PREFIX, jobId)
+}
+
+async function writeJobTrackingState(jobId: string, state: JobTrackingState): Promise<void> {
+  const key = getJobTrackingKey(jobId)
+  const retentionSeconds = getJobResultRetentionSeconds()
+  await redisClient.set(key, JSON.stringify(state))
+  await redisClient.expire(key, retentionSeconds)
+}
+
+export async function getJobTrackingState(jobId: string): Promise<JobTrackingState | null> {
+  try {
+    const data = await redisClient.get(getJobTrackingKey(jobId))
+    if (!data) {
+      return null
+    }
+    return JSON.parse(data) as JobTrackingState
+  } catch (error) {
+    logger.error('获取任务跟踪状态失败', { jobId, error })
+    return null
+  }
+}
+
+async function updateJobTrackingState(jobId: string, patch: Partial<Omit<JobTrackingState, 'revision' | 'updatedAt'>>): Promise<JobTrackingState> {
+  const current = await getJobTrackingState(jobId)
+  const next: JobTrackingState = {
+    revision: (current?.revision ?? 0) + 1,
+    updatedAt: new Date().toISOString(),
+    submittedAt: patch.submittedAt ?? current?.submittedAt ?? null,
+    attempt: patch.attempt ?? current?.attempt ?? 1,
+    status: patch.status ?? current?.status ?? 'queued',
+    stage: Object.prototype.hasOwnProperty.call(patch, 'stage')
+      ? patch.stage ?? null
+      : (current?.stage ?? null)
+  }
+
+  await writeJobTrackingState(jobId, next)
+  return next
 }
 
 /**
@@ -62,6 +113,10 @@ export async function storeJobResult(
     const retentionSeconds = getJobResultRetentionSeconds()
     await redisClient.set(key, JSON.stringify(data))
     await redisClient.expire(key, retentionSeconds)
+    await updateJobTrackingState(jobId, {
+      status: result.status,
+      stage: null
+    })
     logger.info('任务结果已存储', { jobId, status: result.status })
 
     const isCancelled = result.status === 'failed' ? Boolean(result.data.cancelReason) : false
@@ -174,7 +229,12 @@ export async function getAllJobResults(): Promise<Array<{ jobId: string; result:
  */
 export async function storeJobStage(
   jobId: string,
-  stage: ProcessingStage
+  stage: ProcessingStage,
+  options?: {
+    status?: 'queued' | 'processing'
+    attempt?: number
+    submittedAt?: string
+  }
 ): Promise<void> {
   const key = generateRedisKey(JOB_STAGE_KEY_PREFIX, jobId)
 
@@ -182,6 +242,12 @@ export async function storeJobStage(
     const retentionSeconds = getJobResultRetentionSeconds()
     await redisClient.set(key, stage)
     await redisClient.expire(key, retentionSeconds)
+    await updateJobTrackingState(jobId, {
+      stage,
+      status: options?.status ?? 'processing',
+      attempt: options?.attempt,
+      submittedAt: options?.submittedAt
+    })
     logger.debug('任务阶段已存储', { jobId, stage })
   } catch (error) {
     logger.error('存储任务阶段失败', { jobId, error })

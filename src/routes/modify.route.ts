@@ -94,7 +94,11 @@ async function handleModifyRequest(req: express.Request, res: express.Response) 
     videoConfig
   })
 
-  await storeJobStage(jobId, 'generating')
+  await storeJobStage(jobId, 'generating', {
+    status: 'queued',
+    attempt: 1,
+    submittedAt
+  })
 
   await videoQueue.add(
     {

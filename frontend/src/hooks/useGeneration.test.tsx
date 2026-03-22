@@ -63,6 +63,8 @@ describe('useGeneration', () => {
       stage: 'analyzing',
       message: 'running',
       submitted_at: '2026-03-22T00:00:00.000Z',
+      revision: 1,
+      attempt: 1,
     })
   })
 
@@ -91,8 +93,6 @@ describe('useGeneration', () => {
   it('restores an active job from session storage and resumes polling', async () => {
     sessionStorage.setItem('manimcat_active_job', JSON.stringify({
       jobId: 'job-restore',
-      stage: 'rendering',
-      submittedAt: '2026-03-22T00:00:00.000Z',
     }))
     mockedGetJobStatus.mockResolvedValueOnce({
       jobId: 'job-restore',
@@ -100,6 +100,8 @@ describe('useGeneration', () => {
       stage: 'rendering',
       message: 'running',
       submitted_at: '2026-03-22T00:00:00.000Z',
+      revision: 3,
+      attempt: 1,
     })
 
     const { result } = renderHook(() => useGeneration(), { wrapper })
@@ -141,6 +143,46 @@ describe('useGeneration', () => {
     })
 
     expect(result.current.submittedAt).toBe('2026-03-22T00:00:00.000Z')
-    expect(sessionStorage.getItem('manimcat_active_job')).toContain('"submittedAt":"2026-03-22T00:00:00.000Z"')
+    expect(sessionStorage.getItem('manimcat_active_job')).toBe('{"jobId":"job-1"}')
+  })
+
+  it('ignores stale poll responses with an older revision', async () => {
+    mockedGetJobStatus
+      .mockResolvedValueOnce({
+        jobId: 'job-1',
+        status: 'processing',
+        stage: 'rendering',
+        message: 'running',
+        submitted_at: '2026-03-22T00:00:00.000Z',
+        revision: 5,
+        attempt: 2,
+      })
+      .mockResolvedValueOnce({
+        jobId: 'job-1',
+        status: 'processing',
+        stage: 'generating',
+        message: 'stale',
+        submitted_at: '2026-03-22T00:00:00.000Z',
+        revision: 4,
+        attempt: 1,
+      })
+
+    const { result } = renderHook(() => useGeneration(), { wrapper })
+
+    await act(async () => {
+      await result.current.generate({ concept: 'test', outputMode: 'video' })
+    })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+
+    expect(result.current.stage).toBe('rendering')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+
+    expect(result.current.stage).toBe('rendering')
   })
 })

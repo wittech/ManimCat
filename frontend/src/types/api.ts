@@ -168,6 +168,9 @@ export interface JobResult {
   success?: boolean;
   submitted_at?: string;
   finished_at?: string;
+  updated_at?: string;
+  revision?: number;
+  attempt?: number;
   output_mode?: OutputMode;
   video_url?: string | null;
   image_urls?: string[];

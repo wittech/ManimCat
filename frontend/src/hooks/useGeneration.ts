@@ -26,8 +26,6 @@ interface UseGenerationReturn {
 
 interface PersistedActiveJob {
   jobId: string;
-  stage: ProcessingStage;
-  submittedAt: string | null;
 }
 
 const POLL_INTERVAL = 1000;
@@ -56,8 +54,6 @@ function readPersistedActiveJob(): PersistedActiveJob | null {
     }
     return {
       jobId: parsed.jobId,
-      stage: parsed.stage || 'analyzing',
-      submittedAt: typeof parsed.submittedAt === 'string' ? parsed.submittedAt : null,
     };
   } catch {
     return null;
@@ -77,6 +73,7 @@ export function useGeneration(): UseGenerationReturn {
   const pollIntervalRef = useRef<number | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const transientPollErrorCountRef = useRef(0);
+  const latestRevisionRef = useRef(0);
 
   const clearPolling = useCallback(() => {
     if (pollIntervalRef.current) {
@@ -85,11 +82,9 @@ export function useGeneration(): UseGenerationReturn {
     }
   }, []);
 
-  const persistActiveJob = useCallback((nextJobId: string, nextStage: ProcessingStage, nextSubmittedAt: string | null) => {
+  const persistActiveJob = useCallback((nextJobId: string) => {
     sessionStorage.setItem(ACTIVE_JOB_STORAGE_KEY, JSON.stringify({
       jobId: nextJobId,
-      stage: nextStage,
-      submittedAt: nextSubmittedAt,
     }));
   }, []);
 
@@ -97,32 +92,17 @@ export function useGeneration(): UseGenerationReturn {
     sessionStorage.removeItem(ACTIVE_JOB_STORAGE_KEY);
   }, []);
 
-  const updateStage = useCallback((count: number): ProcessingStage => {
-    if (count < 5) {
-      return 'analyzing';
-    }
-    if (count < 15) {
-      return 'generating';
-    }
-    if (count < 25) {
-      return 'refining';
-    }
-    if (count < 60) {
-      return 'rendering';
-    }
-    return 'still-rendering';
-  }, []);
-
   const syncTransientStage = useCallback((nextJobId: string, nextStage: ProcessingStage, nextSubmittedAt: string | null) => {
     setStage(nextStage);
     setSubmittedAt(nextSubmittedAt);
-    persistActiveJob(nextJobId, nextStage, nextSubmittedAt);
+    persistActiveJob(nextJobId);
   }, [persistActiveJob]);
 
   const startPolling = useCallback((nextJobId: string, initialStage: ProcessingStage, initialSubmittedAt: string | null) => {
     clearPolling();
     pollCountRef.current = 0;
     transientPollErrorCountRef.current = 0;
+    latestRevisionRef.current = 0;
     setJobId(nextJobId);
     setStatus('processing');
     setError(null);
@@ -135,6 +115,12 @@ export function useGeneration(): UseGenerationReturn {
       try {
         const data = await getJobStatus(nextJobId, abortControllerRef.current?.signal);
         transientPollErrorCountRef.current = 0;
+        if (typeof data.revision === 'number') {
+          if (data.revision < latestRevisionRef.current) {
+            return;
+          }
+          latestRevisionRef.current = data.revision;
+        }
 
         if (data.status === 'completed') {
           clearPolling();
@@ -158,9 +144,13 @@ export function useGeneration(): UseGenerationReturn {
           return;
         }
 
-        const nextStage = data.stage || updateStage(pollCountRef.current);
         const nextSubmittedAt = data.submitted_at ?? initialSubmittedAt;
-        syncTransientStage(nextJobId, nextStage, nextSubmittedAt);
+        if (data.stage) {
+          syncTransientStage(nextJobId, data.stage, nextSubmittedAt);
+        } else {
+          setSubmittedAt(nextSubmittedAt);
+          persistActiveJob(nextJobId);
+        }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
           return;
@@ -202,13 +192,13 @@ export function useGeneration(): UseGenerationReturn {
         setError(err instanceof Error ? localizeApiMessage(err.message) : t('api.jobStatusFailed'));
       }
     }, POLL_INTERVAL);
-  }, [clearActiveJob, clearPolling, syncTransientStage, t, updateStage]);
+  }, [clearActiveJob, clearPolling, persistActiveJob, syncTransientStage, t]);
 
   useEffect(() => {
     abortControllerRef.current = new AbortController();
     const persisted = readPersistedActiveJob();
     if (persisted) {
-      startPolling(persisted.jobId, persisted.stage, persisted.submittedAt);
+      startPolling(persisted.jobId, 'analyzing', null);
     }
 
     return () => {
@@ -228,6 +218,7 @@ export function useGeneration(): UseGenerationReturn {
     setResult(null);
     setStage(initialStage);
     pollCountRef.current = 0;
+    latestRevisionRef.current = 0;
     abortControllerRef.current?.abort();
     abortControllerRef.current = new AbortController();
 
@@ -293,6 +284,7 @@ export function useGeneration(): UseGenerationReturn {
     setJobId(null);
     setStage('analyzing');
     setSubmittedAt(null);
+    latestRevisionRef.current = 0;
   }, [clearActiveJob, clearPolling]);
 
   const runCancel = useCallback((resetAfterCancel: boolean) => {
